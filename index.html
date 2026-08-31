@@ -87,7 +87,40 @@
   h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
   .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-  .shell { max-width: 1180px; margin: 0 auto; padding: 40px 24px 100px; }
+  .app-shell { display: flex; align-items: flex-start; }
+  .sidebar {
+    width: 280px; flex-shrink: 0; position: sticky; top: 0;
+    height: 100vh; overflow-y: auto;
+    background: linear-gradient(180deg, var(--brand-navy-1) 0%, var(--brand-navy-2) 100%);
+    color: #fff; padding: 26px 22px 32px;
+  }
+  .sidebar-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+  .sidebar-brand-mark {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 9px;
+    background: rgba(255,255,255,.12); border: 1px solid var(--brand-gold);
+    color: var(--brand-gold); font-family: var(--sans); font-weight: 700; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sidebar-brand-name { font-size: 14.5px; font-weight: 700; color: #fff; }
+  .sidebar-brand-sub { font-size: 10.5px; color: rgba(255,255,255,.6); margin-top: 1px; }
+  .sidebar-section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700;
+    color: rgba(255,255,255,.5); margin-bottom: 16px; padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,.14);
+  }
+  .sidebar .step-num { background: var(--brand-gold); color: var(--brand-navy-1); }
+  .sidebar .step-title { color: #fff; }
+  .sidebar .step-desc { color: rgba(255,255,255,.62); }
+  .sidebar-hint {
+    font-size: 11.5px; line-height: 1.5; color: rgba(255,255,255,.5);
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.14);
+  }
+  @media (max-width: 880px) {
+    .app-shell { flex-direction: column; }
+    .sidebar { width: 100%; position: static; height: auto; }
+  }
+
+  .shell { flex: 1; min-width: 0; max-width: 1180px; margin: 0 auto; padding: 40px 24px 100px; }
 
   .masthead {
     text-align: center; margin: -40px -24px 28px; padding: 22px 24px 18px;
@@ -120,6 +153,17 @@
     margin-bottom: 28px;
   }
   @media (max-width: 880px) { .grid-top { grid-template-columns: 1fr; } }
+  .how-to-list { display: flex; flex-direction: column; gap: 16px; }
+  .how-to-step { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--sans);
+  }
+  .step-body { padding-top: 1px; }
+  .step-title { font-size: 13.5px; font-weight: 700; color: var(--accent-ink); margin-bottom: 3px; }
+  .step-desc { font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); }
 
   .card {
     background: var(--surface); border: 1px solid var(--line);
@@ -329,15 +373,61 @@
 
 <div class="toast" id="toast"></div>
 
-<div class="shell">
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-mark">10</div>
+      <div>
+        <div class="sidebar-brand-name">Baseline Studio</div>
+        <div class="sidebar-brand-sub">Three D Integrated Solutions Ltd.</div>
+      </div>
+    </div>
+    <div class="sidebar-section-label">How to use</div>
+    <div class="how-to-list">
+      <div class="how-to-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Drop the Salary Register</div>
+          <div class="step-desc">Drag in this month's Salary Register below, and the Variance file too if the project keeps one — it supplies the OT/LWP detail the reconciliation needs.</div>
+        </div>
+      </div>
+      <div class="how-to-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Check Project setup</div>
+          <div class="step-desc">Picking a project auto-fills its contracted manpower, statutory rates, and PF/Ptax/LWF — adjust anything that's changed, or choose "Custom / other project" to enter everything by hand.</div>
+        </div>
+      </div>
+      <div class="how-to-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Click "Compute baseline"</div>
+          <div class="step-desc">The button lights up once both boxes on the left turn green — both files have loaded.</div>
+        </div>
+      </div>
+      <div class="how-to-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Review the results</div>
+          <div class="step-desc">Manpower Deployment, Statutory Rate, Rates Table, and the Reconciliation block. The Reconciliation KPI should read "✓ 0" — if it doesn't, an explaining item is still missing.</div>
+        </div>
+      </div>
+      <div class="how-to-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Download the workbook</div>
+          <div class="step-desc">Download the CSV once it reconciles, or click any table row to highlight it while you're checking figures.</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-hint">Everything runs locally in your browser — no file is uploaded anywhere.</div>
+  </aside>
+
+  <div class="shell">
   <div class="masthead">
     <h1>AI-10 Baseline&nbsp;&nbsp;PAYROLL RELEASE CONTROL</h1>
     <div class="masthead-sub">Three D Integrated Solutions Ltd.</div>
   </div>
-
-  <header class="top">
-    <div class="sub">Drop this month's Salary Register and Variance file — the baseline reconciles manpower, statutory rates, and pay in your browser and nothing leaves this page.</div>
-  </header>
 
   <div class="grid-top">
     <div class="card">
@@ -448,6 +538,7 @@
   </div>
 
   <footer>Baseline Studio · runs entirely in your browser · Three D Integrated Solutions Ltd.</footer>
+  </div>
 </div>
 
 <div class="download-bar" id="downloadBar" style="display:none;">
@@ -2016,6 +2107,141 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     return 'Semi Skilled'; // default
   }
 
+  // ---------- per-employee pay overrides ----------
+  // Some employees' statutory-standard pay doesn't follow the category rate table at
+  // all (their Basic/VDA/HRA is a fixed, per-employee "Fair Wage" arrangement instead
+  // of the CLC/MW slab), and others are paid the normal category rate PLUS fixed
+  // monthly extras (HRA, telephone, project allowance, retention, etc.) stacked on top.
+  // Both are keyed by Emp ID so they apply automatically the moment a matching
+  // employee shows up in a dropped salary register, regardless of which project.
+  //
+  // A field's value can be a flat number, or a `schedule` — an array of
+  // { from: 'YYYY-MM'|null, value } segments in ascending order (from: null = applies
+  // from the beginning); the segment with the latest `from` at or before the
+  // register's own month wins. `oneTimeMonth: 'YYYY-MM'` makes an allowance apply only
+  // in that one month (e.g. a one-time arrear).
+
+  // Full Fair Wage overrides: Basic + VDA (+ HRA/incentive where given) entirely
+  // replace the category-rate-based Gross Pay for these employees.
+  const EMP_PAY_OVERRIDES = {
+    'PBBAD22': { project: 'PBB Ahmedabad', components: [
+      { field: 'Basic', value: 21200 }, { field: 'VDA', value: 0 }, { field: 'HRA', value: 10600 },
+    ] },
+    'BHS-S30': { project: 'BHS Surat', components: [
+      { field: 'Basic', schedule: [{ from: null, value: 26208 }, { from: '2026-05', value: 16562 }] },
+      { field: 'VDA', schedule: [{ from: null, value: 0 }, { from: '2026-05', value: 9646 }] },
+      { field: 'HRA', schedule: [{ from: null, value: 11185 }, { from: '2026-05', value: 10813 }] },
+    ] },
+    'PBBS601': { project: '60 PBB (Srinagar)', components: [
+      { field: 'Basic', value: 26000 }, { field: 'VDA', value: 0 }, { field: 'HRA', value: 4800 },
+    ] },
+    'HO-0254': { project: 'BHS ITC Vijayawada', components: [
+      { field: 'Basic', value: 20500 }, { field: 'VDA', value: 0 }, { field: 'HRA', value: 10250 }, { field: 'Perf Incentive', value: 7500 },
+    ] },
+  };
+
+  // Stacked allowances: normal MW-category Gross Pay stays as computed, with these
+  // fixed extras added on top.
+  const EMP_ALLOWANCE_OVERRIDES = {
+    'NEC002': { project: 'NEC Kolkata', allowances: [{ label: 'HRA', value: 742 }] },
+    'BHS-HR08': { project: 'BHS Rajkot', allowances: [
+      { label: 'HRA', schedule: [{ from: null, value: 7579 }, { from: '2026-05', value: 13104 }] },
+      { label: 'Telephone', value: 500 },
+      { label: 'Project Allowance', schedule: [{ from: null, value: 6413 }, { from: '2026-05', value: 5153 }] },
+    ] },
+    'BHS-HR22': { project: 'BHS Rajkot', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    'BHS-B001': { project: 'BHS Bhubaneshwar', allowances: [{ label: 'Perf Incentive', value: 4000 }] },
+    'BHS-CAL05': { project: 'BHS Calicut', allowances: [{ label: 'HRA', value: 298 }, { label: 'Perf Incentive', value: 5000 }] },
+    'BHS-R001': { project: 'BHS Raipur', allowances: [
+      { label: 'HRA', schedule: [{ from: null, value: 592 }, { from: '2026-05', value: 2592 }] },
+    ] },
+    'BHS-R005': { project: 'BHS Raipur', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    'BHSVNS-0005': { project: 'BHS Varanasi', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    'BHSVNS-0012': { project: 'BHS Varanasi', allowances: [{ label: 'HRA', value: 2792 }, { label: 'Telephone', value: 500 }] },
+    'BHSITC_VI04': { project: 'BHS Vizag', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    'BHS-V003': { project: 'BHS Vizag', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    'BHS-V005': { project: 'BHS Vizag', allowances: [{ label: 'Perf Incentive', value: 4000 }] },
+    'BHS-V006': { project: 'BHS Vizag', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    'BHUB-001': { project: '21 PBB', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    'PBBK601': { project: '60 PBB (Kolkata)', allowances: [{ label: 'HRA', value: 4556 }] },
+    'PBBK602': { project: '60 PBB (Kolkata)', allowances: [{ label: 'HRA', value: 9506 }] },
+    'BHSITC_V06': { project: 'BHS ITC Vijayawada', allowances: [{ label: 'HRA', value: 1292 }, { label: 'Telephone', value: 500 }] },
+    'BHSITC_V17': { project: 'BHS ITC Vijayawada', allowances: [{ label: 'HRA', value: 3292 }, { label: 'Telephone', value: 500 }] },
+    'BHSITC_V18': { project: 'BHS ITC Vijayawada', allowances: [{ label: 'HRA', value: 1632 }, { label: 'Telephone', value: 500 }] },
+    'HO-0430': { project: 'BHS ITC Vijayawada', allowances: [
+      { label: 'HRA', value: 10273 }, { label: 'Perf Incentive', value: 4000 },
+      { label: 'Telephone', value: 750 }, { label: 'Project Allowance', value: 6660 },
+    ] },
+    'BHS-PUN07': { project: 'BHS O&M Pune', allowances: [
+      { label: 'HRA', schedule: [{ from: null, value: 4556 }, { from: '2026-05', value: 5093 }] },
+      { label: 'Perf Incentive', value: 5000 },
+      // Telephone/Project Allowance vary by month with no fixed figures supplied — not embedded.
+    ] },
+    'BHS-PUN35': { project: 'BHS O&M Pune', allowances: [
+      { label: 'HRA', schedule: [{ from: null, value: 9883 }, { from: '2026-05', value: 13253 }] },
+      { label: 'Retention', value: 2000 },
+      // Telephone/Project Allowance vary by month with no fixed figures supplied — not embedded.
+    ] },
+    'BHSITC-P002': { project: 'BHS O&M Pune', allowances: [{ label: 'Perf Incentive', value: 3649 }] },
+    'BHSITC-PUN03': { project: 'BHS O&M Pune', allowances: [
+      { label: 'Perf Incentive', schedule: [{ from: null, value: 0 }, { from: '2026-06', value: 2000 }] },
+      { label: 'One-time arrear', value: 14000, oneTimeMonth: '2026-06' },
+    ] },
+    'AMRT-0036': { project: '17 PBB', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+  };
+
+  const MONTH_ABBR = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  function monthKeyFromValue(v) {
+    if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}`;
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase();
+      let m = s.match(/([a-z]{3,})[\s.\-]*'?(\d{2,4})/);
+      if (m && MONTH_ABBR[m[1].slice(0, 3)]) {
+        const yr = m[2].length === 2 ? 2000 + Number(m[2]) : Number(m[2]);
+        return `${yr}-${String(MONTH_ABBR[m[1].slice(0, 3)]).padStart(2, '0')}`;
+      }
+      m = s.match(/(\d{4})[\-\/](\d{1,2})/);
+      if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}`;
+      m = s.match(/(\d{1,2})[\/\-](\d{4})/);
+      if (m) return `${m[2]}-${String(m[1]).padStart(2, '0')}`;
+    }
+    return null;
+  }
+  function resolveOverrideField(field, monthKey) {
+    if (!field.schedule) return field.value || 0;
+    let best = field.schedule[0].value;
+    for (const seg of field.schedule) {
+      if (seg.from === null || (monthKey && monthKey >= seg.from)) best = seg.value;
+    }
+    return best || 0;
+  }
+
+  // Returns { gross, note } — the statutory-standard Gross Pay to use in the Rates
+  // Table for this employee: a Full Fair Wage override if one exists for their Emp ID,
+  // else the normal category rate plus any stacked allowance overrides for their Emp ID.
+  function standardGrossFor(e, cfg, monthKey) {
+    const empId = String(e.empId).trim();
+    const full = EMP_PAY_OVERRIDES[empId];
+    if (full) {
+      const gross = full.components.reduce((s, c) => s + resolveOverrideField(c, monthKey), 0);
+      return { gross, note: `Full Fair Wage override (${full.project})` };
+    }
+    const rate = cfg.rates[e.category] || { prev: 0, curr: 0 };
+    let gross = rate.curr;
+    const stack = EMP_ALLOWANCE_OVERRIDES[empId];
+    let note = null;
+    if (stack) {
+      let added = 0;
+      stack.allowances.forEach(a => {
+        if (a.oneTimeMonth) { if (a.oneTimeMonth === monthKey) added += a.value || 0; return; }
+        added += resolveOverrideField(a, monthKey);
+      });
+      gross += added;
+      note = `Includes stacked allowances (${stack.allowances.map(a => a.label).join(', ')})`;
+    }
+    return { gross, note };
+  }
+
   // ---------- compute ----------
   function compute() {
     const cfg = {
@@ -2059,12 +2285,13 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       return { cat, prev: r.prev, curr: r.curr };
     });
 
-    // Rates Table — per employee, statutory standard pay, using THIS employee's own category rate
+    // Rates Table — per employee, statutory standard pay, using THIS employee's own category
+    // rate, unless a Full Fair Wage / stacked-allowance override applies for their Emp ID.
     const ratesRows = employees.map(e => {
-      const rate = cfg.rates[e.category] || { prev: 0, curr: 0 };
-      const gross = rate.curr;
+      const monthKey = monthKeyFromValue(e.month);
+      const { gross, note } = standardGrossFor(e, cfg, monthKey);
       const net = gross - (cfg.pf + cfg.ptax + cfg.lwf);
-      return { ...e, stdGross: gross, pf: cfg.pf, ptax: cfg.ptax, lwf: cfg.lwf, stdNet: net };
+      return { ...e, stdGross: gross, pf: cfg.pf, ptax: cfg.ptax, lwf: cfg.lwf, stdNet: net, overrideNote: note };
     });
     const ratesTotal = ratesRows.reduce((acc, r) => {
       acc.gross += r.stdGross; acc.pf += r.pf; acc.ptax += r.ptax; acc.lwf += r.lwf; acc.net += r.stdNet;
@@ -2083,8 +2310,9 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     let incentiveTotal = 0, extraDayTotal = 0, personalPremiumTotal = 0;
     const incentiveNames = [], extraDayNames = [];
     employees.forEach(e => {
-      const rate = cfg.rates[e.category] || { prev: 0, curr: 0 };
-      const perDay = rate.curr / 26; // each employee's own category rate, not a flat rate
+      const monthKey = monthKeyFromValue(e.month);
+      const stdGross = standardGrossFor(e, cfg, monthKey).gross; // per-employee override-aware standard, not a flat category rate
+      const perDay = stdGross / 26;
       const v = varianceByEmp[String(e.empId).trim()];
       const incentive = v ? v.incentiveOT : 0;
       incentiveTotal += incentive;
@@ -2092,7 +2320,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       const extraDays = Math.max(0, (e.payDays || 26) - 26);
       const extraDayPay = Math.round(perDay * extraDays);
       if (extraDays > 0) { extraDayTotal += extraDayPay; extraDayNames.push(e.name); }
-      const residual = e.gross - incentive - rate.curr - extraDayPay;
+      const residual = e.gross - incentive - stdGross - extraDayPay;
       if (Math.abs(residual) >= 1) personalPremiumTotal += residual;
     });
 
@@ -2182,7 +2410,10 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     // Rates table (per employee)
     let rHtml = `<thead><tr><th>Emp Code</th><th>Employee</th><th>Category</th><th>DOJ</th><th class="num">Gross</th><th class="num">PF</th><th class="num">Ptax</th><th class="num">LWF</th><th class="num">Net</th></tr></thead><tbody>`;
     r.ratesRows.forEach(row => {
-      rHtml += `<tr class="row-selectable"><td class="mono">${row.empId}</td><td>${row.name}</td><td>${row.category}</td><td>${row.doj || ''}</td>
+      const nameCell = row.overrideNote
+        ? `<td title="${row.overrideNote.replace(/"/g, '&quot;')}">${row.name} <span style="color:var(--gold);cursor:help;">✦</span></td>`
+        : `<td>${row.name}</td>`;
+      rHtml += `<tr class="row-selectable"><td class="mono">${row.empId}</td>${nameCell}<td>${row.category}</td><td>${row.doj || ''}</td>
         <td class="num">₹${fmt(row.stdGross)}</td><td class="num">₹${fmt(row.pf)}</td><td class="num">₹${fmt(row.ptax)}</td><td class="num">₹${fmt(row.lwf)}</td><td class="num">₹${fmt(row.stdNet)}</td></tr>`;
     });
     rHtml += `<tr class="total"><td colspan="4">Total</td><td class="num">₹${fmt(r.ratesTotal.gross)}</td><td class="num">₹${fmt(r.ratesTotal.pf)}</td><td class="num">₹${fmt(r.ratesTotal.ptax)}</td><td class="num">₹${fmt(r.ratesTotal.lwf)}</td><td class="num">₹${fmt(r.ratesTotal.net)}</td></tr></tbody>`;
