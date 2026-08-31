@@ -152,6 +152,28 @@
     width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
     flex-shrink: 0; box-shadow: 0 0 0 3px var(--gold-soft), 0 0 0 4px var(--gold);
   }
+  .embed-note + .embed-note { margin-top: 10px; }
+
+  .ref-details { margin-top: 12px; }
+  .ref-details summary {
+    cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--accent);
+    padding: 6px 2px; list-style: none;
+  }
+  .ref-details summary::-webkit-details-marker { display: none; }
+  .ref-details summary::before { content: '▸ '; }
+  .ref-details[open] summary::before { content: '▾ '; }
+  .ref-block { margin: 14px 0 4px; }
+  .ref-block h4 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--ink-soft); margin-bottom: 6px; font-weight: 700;
+  }
+  .ref-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
+  .ref-table th, .ref-table td {
+    padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line);
+  }
+  .ref-table th:first-child, .ref-table td:first-child { text-align: left; }
+  .ref-table th { color: var(--ink-soft); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
+  .ref-table-wrap { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
 
   .drops { display: flex; flex-direction: column; gap: 12px; }
   .drop {
@@ -351,6 +373,14 @@
         <span class="embed-note-dot"></span>
         Contractual manpower are embedded for the actual comparison
       </div>
+      <div class="embed-note">
+        <span class="embed-note-dot"></span>
+        Central CLC, Tamil Nadu &amp; Haryana wage notifications, Professional Tax, and LWF tables are embedded for offline lookup
+      </div>
+      <details class="ref-details">
+        <summary>View embedded statutory reference tables</summary>
+        <div id="refTables"></div>
+      </details>
     </div>
 
     <div class="card">
@@ -479,6 +509,877 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   // rate table. No designation auto-classifies into it (no such mapping is known yet),
   // so its "Actual" count in that table stays 0 until manually accounted for.
   const CONTRACT_CATEGORIES = [...CATEGORIES, 'Fair Wages'];
+
+  // ---------- Embedded statutory reference data ----------
+  // Central Govt CLC — Construction & Maintenance notification, Areas A/B/C, Monthly = Daily x 26.
+  // Source: Master_MW_Skill Mapping_Locations.xlsx 'MW' sheet. One correction was made: the
+  // source file's own Oct2025-Mar2026 / Area C / Highly Skilled cell (40560) breaks the pattern of
+  // 'no change' seen in every other area for that period and reads as a formula/reference error in
+  // the workbook — restored here to 23218 (same as the surrounding Apr25-Sep25 and unaffected cells).
+  const CLC_CENTRAL_MW = [
+  {
+    "period": "Apr 2023 \u2013 Sep 2023",
+    "A": {
+      "Unskilled": 19136,
+      "Semi Skilled": 21216,
+      "Skilled": 23322,
+      "Highly Skilled": 25298
+    },
+    "B": {
+      "Unskilled": 16016,
+      "Semi Skilled": 18070,
+      "Skilled": 21216,
+      "Highly Skilled": 23322
+    },
+    "C": {
+      "Unskilled": 12844,
+      "Semi Skilled": 15886,
+      "Skilled": 18070,
+      "Highly Skilled": 21216
+    }
+  },
+  {
+    "period": "Oct 2023 \u2013 Mar 2024",
+    "A": {
+      "Unskilled": 19526,
+      "Semi Skilled": 21632,
+      "Skilled": 23790,
+      "Highly Skilled": 25792
+    },
+    "B": {
+      "Unskilled": 16328,
+      "Semi Skilled": 18434,
+      "Skilled": 21632,
+      "Highly Skilled": 23790
+    },
+    "C": {
+      "Unskilled": 13104,
+      "Semi Skilled": 15314,
+      "Skilled": 18434,
+      "Highly Skilled": 21632
+    }
+  },
+  {
+    "period": "Apr 2024 \u2013 Sep 2024",
+    "A": {
+      "Unskilled": 20228,
+      "Semi Skilled": 22412,
+      "Skilled": 24648,
+      "Highly Skilled": 26728
+    },
+    "B": {
+      "Unskilled": 16926,
+      "Semi Skilled": 19084,
+      "Skilled": 22412,
+      "Highly Skilled": 24648
+    },
+    "C": {
+      "Unskilled": 13572,
+      "Semi Skilled": 15860,
+      "Skilled": 19084,
+      "Highly Skilled": 22412
+    }
+  },
+  {
+    "period": "Oct 2024 \u2013 Mar 2025",
+    "A": {
+      "Unskilled": 20358,
+      "Semi Skilled": 22568,
+      "Skilled": 24804,
+      "Highly Skilled": 26910
+    },
+    "B": {
+      "Unskilled": 17030,
+      "Semi Skilled": 19214,
+      "Skilled": 22568,
+      "Highly Skilled": 24804
+    },
+    "C": {
+      "Unskilled": 13676,
+      "Semi Skilled": 15964,
+      "Skilled": 19214,
+      "Highly Skilled": 22568
+    }
+  },
+  {
+    "period": "Apr 2025 \u2013 Sep 2025",
+    "A": {
+      "Unskilled": 20930,
+      "Semi Skilled": 23218,
+      "Skilled": 25506,
+      "Highly Skilled": 27690
+    },
+    "B": {
+      "Unskilled": 17524,
+      "Semi Skilled": 19760,
+      "Skilled": 23218,
+      "Highly Skilled": 25506
+    },
+    "C": {
+      "Unskilled": 14066,
+      "Semi Skilled": 16432,
+      "Skilled": 19760,
+      "Highly Skilled": 23218
+    }
+  },
+  {
+    "period": "Oct 2025 \u2013 Mar 2026",
+    "A": {
+      "Unskilled": 20930,
+      "Semi Skilled": 23218,
+      "Skilled": 25506,
+      "Highly Skilled": 27690
+    },
+    "B": {
+      "Unskilled": 17524,
+      "Semi Skilled": 19760,
+      "Skilled": 23218,
+      "Highly Skilled": 25506
+    },
+    "C": {
+      "Unskilled": 14066,
+      "Semi Skilled": 16432,
+      "Skilled": 19760,
+      "Highly Skilled": 23218
+    }
+  },
+  {
+    "period": "Apr 2026 \u2013 Sep 2026",
+    "A": {
+      "Unskilled": 21502,
+      "Semi Skilled": 23868,
+      "Skilled": 26208,
+      "Highly Skilled": 28444
+    },
+    "B": {
+      "Unskilled": 18018,
+      "Semi Skilled": 20306,
+      "Skilled": 23868,
+      "Highly Skilled": 26208
+    },
+    "C": {
+      "Unskilled": 14456,
+      "Semi Skilled": 16900,
+      "Skilled": 20306,
+      "Highly Skilled": 23868
+    }
+  }
+];
+
+  // Tamil Nadu State — Construction & Maintenance, by zone. Zone A: Chennai/Tuticorin/Coimbatore,
+  // Zone B: Salem/Trichy, Zone C: Madurai. Monthly Gross = (Basic + DA) x 30 days.
+  const TN_MW = {
+  "A": [
+    {
+      "date": "W.E.F 01.04.2022",
+      "Unskilled": 22985,
+      "Semi Skilled": 24020,
+      "Skilled": 24500,
+      "Highly Skilled": 24935
+    },
+    {
+      "date": "W.E.F 07.12.2022",
+      "Unskilled": 26240,
+      "Semi Skilled": 27530,
+      "Skilled": 28115,
+      "Highly Skilled": 28655
+    },
+    {
+      "date": "W.E.F 07.12.2022",
+      "Unskilled": 28502,
+      "Semi Skilled": 29792,
+      "Skilled": 30377,
+      "Highly Skilled": 30917
+    },
+    {
+      "date": "W.E.F 01.04.2023",
+      "Unskilled": 29471,
+      "Semi Skilled": 30761,
+      "Skilled": 31346,
+      "Highly Skilled": 31886
+    },
+    {
+      "date": "W.E.F 01.04.2024",
+      "Unskilled": 31085,
+      "Semi Skilled": 32375,
+      "Skilled": 32960,
+      "Highly Skilled": 33500
+    },
+    {
+      "date": "W.E.F 01.04.2025",
+      "Unskilled": 31488,
+      "Semi Skilled": 32778,
+      "Skilled": 33363,
+      "Highly Skilled": 33903
+    },
+    {
+      "date": "W.E.F 01.04.2026",
+      "Unskilled": 31569,
+      "Semi Skilled": 32859,
+      "Skilled": 33444,
+      "Highly Skilled": 33984
+    }
+  ],
+  "B": [
+    {
+      "date": "W.E.F 01.04.2022",
+      "Unskilled": 20090,
+      "Semi Skilled": 23660,
+      "Skilled": 23855,
+      "Highly Skilled": 24230
+    },
+    {
+      "date": "W.E.F 07.12.2022",
+      "Unskilled": 22640,
+      "Semi Skilled": 27080,
+      "Skilled": 27320,
+      "Highly Skilled": 28190
+    },
+    {
+      "date": "W.E.F 07.12.2022",
+      "Unskilled": 22640,
+      "Semi Skilled": 27080,
+      "Skilled": 27320,
+      "Highly Skilled": 28190
+    },
+    {
+      "date": "W.E.F 01.04.2023",
+      "Unskilled": 26021,
+      "Semi Skilled": 30551,
+      "Skilled": 30761,
+      "Highly Skilled": 31871
+    },
+    {
+      "date": "W.E.F 01.04.2024",
+      "Unskilled": 27635,
+      "Semi Skilled": 32165,
+      "Skilled": 32375,
+      "Highly Skilled": 33485
+    },
+    {
+      "date": "W.E.F 01.04.2025",
+      "Unskilled": 28038,
+      "Semi Skilled": 32568,
+      "Skilled": 32778,
+      "Highly Skilled": 33888
+    },
+    {
+      "date": "W.E.F 01.04.2026",
+      "Unskilled": 28119,
+      "Semi Skilled": 32649,
+      "Skilled": 32859,
+      "Highly Skilled": 33969
+    }
+  ],
+  "C": [
+    {
+      "date": "W.E.F 01.04.2022",
+      "Unskilled": 19940,
+      "Semi Skilled": 23330,
+      "Skilled": 23525,
+      "Highly Skilled": 24230
+    },
+    {
+      "date": "W.E.F 07.12.2022",
+      "Unskilled": 22460,
+      "Semi Skilled": 26660,
+      "Skilled": 26900,
+      "Highly Skilled": 27785
+    },
+    {
+      "date": "W.E.F 07.12.2022",
+      "Unskilled": 24722,
+      "Semi Skilled": 26660,
+      "Skilled": 26900,
+      "Highly Skilled": 27785
+    },
+    {
+      "date": "W.E.F 01.04.2023",
+      "Unskilled": 25691,
+      "Semi Skilled": 29891,
+      "Skilled": 30131,
+      "Highly Skilled": 31016
+    },
+    {
+      "date": "W.E.F 01.04.2024",
+      "Unskilled": 27305,
+      "Semi Skilled": 31505,
+      "Skilled": 31745,
+      "Highly Skilled": 32630
+    },
+    {
+      "date": "W.E.F 01.04.2025",
+      "Unskilled": 27708,
+      "Semi Skilled": 31908,
+      "Skilled": 32148,
+      "Highly Skilled": 33033
+    },
+    {
+      "date": "W.E.F 01.04.2026",
+      "Unskilled": 27789,
+      "Semi Skilled": 31989,
+      "Skilled": 32229,
+      "Highly Skilled": 33114
+    }
+  ]
+};
+
+  // Haryana State — Construction & Maintenance (W.E.F. 01-01-2025). Emp ID first 2 letters = HO.
+  // Per the source note, Semi-Skilled and Skilled use the higher 'B' sub-slab shown here.
+  const HARYANA_MW = {
+  "period": "Jan 2025 onwards",
+  "Unskilled": 11257.12,
+  "Semi Skilled": 12410.91,
+  "Skilled": 13683.06,
+  "Highly Skilled": 14367.21
+};
+
+  // Professional Tax monthly rate by state — slabs as [slabMaxGross, monthlyRate], slabs in
+  // ascending order, last slab's max is a large sentinel meaning 'and above'. A state not listed
+  // has no data embedded yet (use Custom / manual entry).
+  const PTAX_TABLE = {
+  "Maharashtra": [
+    [
+      7500,
+      0
+    ],
+    [
+      10000,
+      175
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Karnataka": [
+    [
+      15000,
+      0
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Andhra Pradesh": [
+    [
+      15000,
+      0
+    ],
+    [
+      20000,
+      150
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Telangana": [
+    [
+      15000,
+      0
+    ],
+    [
+      20000,
+      150
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "West Bengal": [
+    [
+      8500,
+      0
+    ],
+    [
+      10000,
+      0
+    ],
+    [
+      15000,
+      110
+    ],
+    [
+      25000,
+      130
+    ],
+    [
+      40000,
+      150
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Assam": [
+    [
+      10000,
+      0
+    ],
+    [
+      14999,
+      150
+    ],
+    [
+      24999,
+      180
+    ],
+    [
+      999999999,
+      208
+    ]
+  ],
+  "Gujarat": [
+    [
+      5999,
+      0
+    ],
+    [
+      8999,
+      80
+    ],
+    [
+      11999,
+      150
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Madhya Pradesh": [
+    [
+      18750,
+      0
+    ],
+    [
+      24999,
+      1500
+    ],
+    [
+      33333,
+      2000
+    ],
+    [
+      999999999,
+      2500
+    ]
+  ],
+  "Tripura": [
+    [
+      7500,
+      0
+    ],
+    [
+      15000,
+      150
+    ],
+    [
+      999999999,
+      208
+    ]
+  ],
+  "Odisha": [
+    [
+      13333,
+      0
+    ],
+    [
+      25000,
+      125
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Kerala": [
+    [
+      11999,
+      0
+    ],
+    [
+      17999,
+      20
+    ],
+    [
+      29999,
+      30
+    ],
+    [
+      44999,
+      50
+    ],
+    [
+      59999,
+      75
+    ],
+    [
+      74999,
+      100
+    ],
+    [
+      99999,
+      125
+    ],
+    [
+      124999,
+      166.67
+    ],
+    [
+      999999999,
+      208.33
+    ]
+  ],
+  "Bihar": [
+    [
+      300000,
+      0
+    ],
+    [
+      500000,
+      83.33
+    ],
+    [
+      1000000,
+      166.67
+    ],
+    [
+      999999999,
+      208.33
+    ]
+  ],
+  "Manipur": [
+    [
+      50000,
+      0
+    ],
+    [
+      75000,
+      100
+    ],
+    [
+      100000,
+      167
+    ],
+    [
+      125000,
+      200
+    ],
+    [
+      999999999,
+      208
+    ]
+  ],
+  "Sikkim": [
+    [
+      20000,
+      0
+    ],
+    [
+      30000,
+      125
+    ],
+    [
+      40000,
+      150
+    ],
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Punjab": [
+    [
+      999999999,
+      200
+    ]
+  ],
+  "Puducherry": [
+    [
+      99999,
+      0
+    ],
+    [
+      200000,
+      42
+    ],
+    [
+      300000,
+      83
+    ],
+    [
+      400000,
+      125
+    ],
+    [
+      500000,
+      167
+    ],
+    [
+      999999999,
+      208
+    ]
+  ],
+  "Mizoram": [
+    [
+      5000,
+      0
+    ],
+    [
+      8000,
+      75
+    ],
+    [
+      10000,
+      120
+    ],
+    [
+      12000,
+      150
+    ],
+    [
+      15000,
+      180
+    ],
+    [
+      999999999,
+      208
+    ]
+  ],
+  "Jharkhand": [
+    [
+      300000,
+      0
+    ],
+    [
+      500000,
+      100
+    ],
+    [
+      800000,
+      150
+    ],
+    [
+      1000000,
+      175
+    ],
+    [
+      999999999,
+      208.33
+    ]
+  ],
+  "Meghalaya": [
+    [
+      50000,
+      0
+    ],
+    [
+      75000,
+      17
+    ],
+    [
+      100000,
+      25
+    ],
+    [
+      150000,
+      42
+    ],
+    [
+      200000,
+      63
+    ],
+    [
+      250000,
+      83
+    ],
+    [
+      300000,
+      104
+    ],
+    [
+      350000,
+      125
+    ],
+    [
+      400000,
+      150
+    ],
+    [
+      450000,
+      175
+    ],
+    [
+      500000,
+      200
+    ],
+    [
+      999999999,
+      208
+    ]
+  ],
+  "Nagaland": [
+    [
+      4000,
+      0
+    ],
+    [
+      5000,
+      35
+    ],
+    [
+      7000,
+      75
+    ],
+    [
+      9000,
+      110
+    ],
+    [
+      12000,
+      180
+    ],
+    [
+      999999999,
+      208
+    ]
+  ],
+  "Tamil Nadu": [
+    [
+      21000,
+      0
+    ],
+    [
+      30000,
+      23
+    ],
+    [
+      45000,
+      53
+    ],
+    [
+      60000,
+      115
+    ],
+    [
+      75000,
+      171
+    ],
+    [
+      999999999,
+      208
+    ]
+  ]
+};
+  function ptaxForState(state, grossPay) {
+    const slabs = PTAX_TABLE[state];
+    if (!slabs) return null;
+    for (const [maxGross, rate] of slabs) { if (grossPay <= maxGross) return rate; }
+    return slabs[slabs.length - 1][1];
+  }
+
+  // Labour Welfare Fund employee contribution by state (monthly-equivalent amount and actual
+  // remittance frequency — several states collect it half-yearly or yearly even though the Rates
+  // Table shows/deducts a monthly figure by convention). States with no LWF act are listed separately.
+  const LWF_TABLE = {
+  "Andhra Pradesh": {
+    "employee": 30,
+    "freq": "Yearly (December)"
+  },
+  "Telangana": {
+    "employee": 2,
+    "freq": "Yearly (December)"
+  },
+  "Delhi": {
+    "employee": 0.75,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Gujarat": {
+    "employee": 6,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Maharashtra": {
+    "employee": 25,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Karnataka": {
+    "employee": 20,
+    "freq": "Yearly (December)"
+  },
+  "West Bengal": {
+    "employee": 3,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Tamil Nadu": {
+    "employee": 20,
+    "freq": "Yearly (December)"
+  },
+  "Haryana": {
+    "employee": "0.2% of gross, max Rs.34/month",
+    "freq": "Monthly"
+  },
+  "Madhya Pradesh": {
+    "employee": 10,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Chhattisgarh": {
+    "employee": 15,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Goa": {
+    "employee": 60,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Kerala": {
+    "employee": 50,
+    "freq": "Monthly"
+  },
+  "Punjab": {
+    "employee": 5,
+    "freq": "Monthly"
+  },
+  "Odisha": {
+    "employee": 10,
+    "freq": "Half Yearly (Jun & Dec)"
+  },
+  "Chandigarh": {
+    "employee": 5,
+    "freq": "Monthly"
+  }
+};
+  const LWF_NOT_APPLICABLE = [
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Rajasthan",
+  "Sikkim",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "Andaman & Nicobar",
+  "Dadra and Nagar Haveli",
+  "Daman & Diu",
+  "J&K",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry"
+];
+  function lwfForState(state) {
+    if (LWF_NOT_APPLICABLE.includes(state)) return { employee: 0, freq: 'No LWF Act' };
+    return LWF_TABLE[state] || null;
+  }
 
   // Statutory rate / PF / Ptax / LWF defaults per project — these live outside
   // Master Manpower.xlsx (which only carries contracted headcount), so they're kept
@@ -709,7 +1610,65 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     });
   }
 
+  // Render the embedded statutory reference tables (Central CLC, Tamil Nadu, Haryana,
+  // Ptax, LWF) into the "View embedded statutory reference tables" panel — read-only,
+  // for lookup/verification; the tool's own rate resolution still goes through
+  // RATE_DEFAULTS / buildProjects(), not this view.
+  function renderReferenceTables() {
+    const el = $('refTables');
+    if (!el) return;
+    const money = (n) => (typeof n === 'number' ? n.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : n);
+    const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    let html = '';
+
+    // Central Govt CLC — latest period, all 3 areas
+    const clc = CLC_CENTRAL_MW[CLC_CENTRAL_MW.length - 1];
+    html += `<div class="ref-block"><h4>Central Govt CLC — ${esc(clc.period)} (₹/month)</h4>
+      <div class="ref-table-wrap"><table class="ref-table">
+        <thead><tr><th>Category</th><th>Area A</th><th>Area B</th><th>Area C</th></tr></thead>
+        <tbody>${CATEGORIES.map(cat => `<tr><td>${esc(cat)}</td><td>${money(clc.A[cat])}</td><td>${money(clc.B[cat])}</td><td>${money(clc.C[cat])}</td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+
+    // Tamil Nadu — latest period, all 3 zones
+    const tnZoneNames = { A: 'Chennai / Tuticorin / Coimbatore', B: 'Salem / Trichy', C: 'Madurai' };
+    const tnLatest = { A: TN_MW.A[TN_MW.A.length - 1], B: TN_MW.B[TN_MW.B.length - 1], C: TN_MW.C[TN_MW.C.length - 1] };
+    html += `<div class="ref-block"><h4>Tamil Nadu — ${esc(tnLatest.A.date)} (₹/month gross)</h4>
+      <div class="ref-table-wrap"><table class="ref-table">
+        <thead><tr><th>Category</th><th>${esc(tnZoneNames.A)}</th><th>${esc(tnZoneNames.B)}</th><th>${esc(tnZoneNames.C)}</th></tr></thead>
+        <tbody>${CATEGORIES.map(cat => `<tr><td>${esc(cat)}</td><td>${money(tnLatest.A[cat])}</td><td>${money(tnLatest.B[cat])}</td><td>${money(tnLatest.C[cat])}</td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+
+    // Haryana — single current period
+    html += `<div class="ref-block"><h4>Haryana — ${esc(HARYANA_MW.period)} (₹/month)</h4>
+      <div class="ref-table-wrap"><table class="ref-table">
+        <thead><tr><th>Category</th><th>Rate</th></tr></thead>
+        <tbody>${CATEGORIES.map(cat => `<tr><td>${esc(cat)}</td><td>${money(HARYANA_MW[cat])}</td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+
+    // Professional Tax — top slab rate per state (full slab detail lives in PTAX_TABLE)
+    const ptaxRows = Object.keys(PTAX_TABLE).filter(s => PTAX_TABLE[s].length).sort()
+      .map(s => `<tr><td>${esc(s)}</td><td>${money(PTAX_TABLE[s][PTAX_TABLE[s].length - 1][1])}</td></tr>`).join('');
+    html += `<div class="ref-block"><h4>Professional Tax — top monthly slab by state (₹)</h4>
+      <div class="ref-table-wrap"><table class="ref-table">
+        <thead><tr><th>State</th><th>Max slab rate</th></tr></thead>
+        <tbody>${ptaxRows}</tbody>
+      </table></div></div>`;
+
+    // LWF — employee contribution per state
+    const lwfRows = Object.keys(LWF_TABLE).sort()
+      .map(s => `<tr><td>${esc(s)}</td><td>${esc(LWF_TABLE[s].employee)}</td><td style="text-align:left">${esc(LWF_TABLE[s].freq)}</td></tr>`).join('');
+    html += `<div class="ref-block"><h4>Labour Welfare Fund — employee contribution by state</h4>
+      <div class="ref-table-wrap"><table class="ref-table">
+        <thead><tr><th>State</th><th>Employee ₹</th><th style="text-align:left">Frequency</th></tr></thead>
+        <tbody>${lwfRows}</tbody>
+      </table></div>
+      <p style="font-size:11px;color:var(--ink-soft);margin-top:6px;">No LWF Act: ${esc(LWF_NOT_APPLICABLE.join(', '))}</p></div>`;
+
+    el.innerHTML = html;
+  }
+
   buildRateInputsTable();
+  renderReferenceTables();
   populateProjectDropdown();
   (function selectDefaultProject() {
     const defaultName = PROJECTS['BHS Calicut'] ? 'BHS Calicut' : Object.keys(PROJECTS)[0];
