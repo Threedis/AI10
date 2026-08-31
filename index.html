@@ -13,15 +13,22 @@
     --surface: #ffffff;
     --surface-2: #eef1f6;
     --line: #dbe0e9;
-    --accent: #0e8f72;
-    --accent-soft: #d7f0e9;
-    --accent-ink: #075a48;
+    --accent: #1c4e80;
+    --accent-soft: #dce7f2;
+    --accent-ink: #12345a;
+    --gold: #a97a1f;
+    --gold-soft: #f3e8d0;
     --warn: #b5760a;
     --warn-soft: #fbeed2;
     --crit: #b3261e;
     --crit-soft: #fbdedc;
     --shadow: 0 1px 2px rgba(22,35,58,.06), 0 8px 24px -12px rgba(22,35,58,.18);
-    --radius: 14px;
+    --radius: 12px;
+    /* Fixed letterhead colors — intentionally the same in light and dark mode, like a
+       printed masthead, rather than flipping with the rest of the theme. */
+    --brand-navy-1: #0d2b4a;
+    --brand-navy-2: #1c4e80;
+    --brand-gold: #c9a13b;
     --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --display: "Fraunces", Georgia, serif;
@@ -34,9 +41,11 @@
       --surface: #161f2e;
       --surface-2: #1d2939;
       --line: #2a3549;
-      --accent: #33c9a2;
-      --accent-soft: #143631;
-      --accent-ink: #7fe3c6;
+      --accent: #6ea4d8;
+      --accent-soft: #1c2e42;
+      --accent-ink: #a9cbec;
+      --gold: #d4af6a;
+      --gold-soft: #3a2f11;
       --warn: #e3ab3f;
       --warn-soft: #3a2f11;
       --crit: #f2726b;
@@ -51,9 +60,11 @@
     --surface: #161f2e;
     --surface-2: #1d2939;
     --line: #2a3549;
-    --accent: #33c9a2;
-    --accent-soft: #143631;
-    --accent-ink: #7fe3c6;
+    --accent: #6ea4d8;
+    --accent-soft: #1c2e42;
+    --accent-ink: #a9cbec;
+    --gold: #d4af6a;
+    --gold-soft: #3a2f11;
     --warn: #e3ab3f;
     --warn-soft: #3a2f11;
     --crit: #f2726b;
@@ -78,10 +89,18 @@
 
   .shell { max-width: 1180px; margin: 0 auto; padding: 40px 24px 100px; }
 
-  .masthead { text-align: center; margin-bottom: 28px; }
+  .masthead {
+    text-align: center; margin: -40px -24px 28px; padding: 22px 24px 18px;
+    background: linear-gradient(180deg, var(--brand-navy-1) 0%, var(--brand-navy-2) 100%);
+    border-bottom: 3px solid var(--brand-gold);
+  }
   .masthead h1 {
-    font-size: 26px; font-weight: 700; letter-spacing: 0.02em;
-    text-transform: uppercase; color: var(--ink);
+    font-size: 24px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #fff; font-family: var(--sans);
+  }
+  .masthead .masthead-sub {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: rgba(255,255,255,.7); margin-top: 4px; font-weight: 500;
   }
 
   header.top {
@@ -104,13 +123,34 @@
 
   .card {
     background: var(--surface); border: 1px solid var(--line);
+    border-top: 3px solid var(--accent);
     border-radius: var(--radius); box-shadow: var(--shadow);
     padding: 22px 24px;
   }
   .card h2 {
     font-size: 13px; text-transform: uppercase; letter-spacing: .09em;
-    color: var(--ink-soft); font-weight: 600; font-family: var(--sans);
+    color: var(--accent-ink); font-weight: 700; font-family: var(--sans);
     margin-bottom: 14px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  }
+
+  .divider { height: 1px; background: var(--line); margin: 16px 0; }
+  .drop-compact { padding: 12px 16px; }
+  .optional-tag {
+    font-size: 10px; font-weight: 500; text-transform: none; letter-spacing: normal;
+    color: var(--ink-soft); margin-left: 6px;
+  }
+
+  .embed-note {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--gold-soft); border: 1px solid var(--gold);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; font-weight: 700; color: var(--accent-ink);
+    letter-spacing: .01em;
+  }
+  .embed-note-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
+    flex-shrink: 0; box-shadow: 0 0 0 3px var(--gold-soft), 0 0 0 4px var(--gold);
   }
 
   .drops { display: flex; flex-direction: column; gap: 12px; }
@@ -187,6 +227,14 @@
   tr.total td { font-weight: 700; background: var(--surface-2); }
   tr.total td.num { font-family: var(--mono); }
 
+  tbody tr.row-selectable { cursor: pointer; transition: background .1s ease; }
+  tbody tr.row-selectable:hover td { background: var(--surface-2); }
+  tbody tr.row-selectable.selected td {
+    background: var(--gold-soft);
+    box-shadow: inset 3px 0 0 var(--gold);
+  }
+  tbody tr.row-selectable.selected:hover td { background: var(--gold-soft); }
+
   .pill {
     display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
     font-weight: 600; padding: 3px 10px; border-radius: 999px;
@@ -256,13 +304,12 @@
 <div class="toast" id="toast"></div>
 
 <div class="shell">
-  <div class="masthead"><h1>AI-10 Baseline&nbsp;&nbsp;PAYROLL RELEASE CONTROL</h1></div>
+  <div class="masthead">
+    <h1>AI-10 Baseline&nbsp;&nbsp;PAYROLL RELEASE CONTROL</h1>
+    <div class="masthead-sub">Three D Integrated Solutions Ltd.</div>
+  </div>
 
   <header class="top">
-    <div class="brand">
-      <h1>Baseline Studio</h1>
-      <span class="tag">Payroll release control</span>
-    </div>
     <div class="sub">Drop this month's Salary Register and Variance file — the baseline reconciles manpower, statutory rates, and pay in your browser and nothing leaves this page.</div>
   </header>
 
@@ -293,6 +340,12 @@
       <div class="field" id="pwField" style="display:none; margin-top:12px;">
         <label for="pwInput">Variance file password</label>
         <input id="pwInput" type="password" placeholder="Enter password and re-drop the file" />
+      </div>
+
+      <div class="divider"></div>
+      <div class="embed-note">
+        <span class="embed-note-dot"></span>
+        Contractual manpower are embedded for the actual comparison
       </div>
     </div>
 
@@ -413,13 +466,14 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   // project here (and re-embed) whenever the master files get a new row, so the dropdown stays current.
   const CATEGORIES = ['Highly Skilled', 'Skilled', 'Semi Skilled', 'Unskilled'];
 
-  const PROJECTS = {
+  // Statutory rate / PF / Ptax / LWF defaults per project — these live outside
+  // Master Manpower.xlsx (which only carries contracted headcount), so they're kept
+  // here and merged onto whatever project list the master file supplies. Add an
+  // entry here whenever a brand-new project's statutory figures become known.
+  const RATE_DEFAULTS = {
     'PBB Mihan Nagpur': {
-      // Lowercase keywords matched against the register's Branch/Division columns
-      // (and, as a fallback, its filename) to auto-select this project on file drop.
       matchTokens: ['mihan', 'nagpur'],
-      location: 'Nagpur (Area "A")',
-      contract: { 'Highly Skilled': 1, 'Skilled': 7, 'Semi Skilled': 0, 'Unskilled': 0 },
+      locationLabel: 'Nagpur (Area "A")',
       rates: { // per-category, Apr 2025 -> Apr 2026 CLC/MW notification
         'Highly Skilled': { prev: 27690, curr: 28444 },
         'Skilled': { prev: 25506, curr: 26208 },
@@ -430,9 +484,8 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       registerDeductsLWF: false,
     },
     'BHS Calicut': {
-      matchTokens: ['bhs', 'calicut', 'kozhikode'],
-      location: 'Calicut / Kozhikode (Area "B")',
-      contract: { 'Highly Skilled': 5, 'Skilled': 0, 'Semi Skilled': 0, 'Unskilled': 0 },
+      matchTokens: ['bhs calicut', 'calicut', 'kozhikode'],
+      locationLabel: 'Calicut / Kozhikode (Area "B")',
       rates: { // per-category, Oct 2025 -> Apr 2026 CLC notification
         'Highly Skilled': { prev: 25506, curr: 26208 },
         'Skilled': { prev: 23218, curr: 23868 },
@@ -442,8 +495,93 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       pf: 1800, ptax: 30, lwf: 50, // Kerala: PTax monthly rate, LWF is monthly
       registerDeductsLWF: true,
     },
+    'BHS ITC JAMMU': {
+      matchTokens: ['itc jammu', 'jammu'],
+      // Statutory rates for Jammu not yet supplied — pick "Custom" or fill the
+      // per-category rate grid manually until these are confirmed.
+      rates: {}, pf: 1800, ptax: 0, lwf: 0, registerDeductsLWF: false,
+    },
+    'BHS O&M Surat': {
+      matchTokens: ['o&m surat', 'surat'],
+      // Statutory rates for Surat not yet supplied — pick "Custom" or fill the
+      // per-category rate grid manually until these are confirmed.
+      rates: {}, pf: 1800, ptax: 0, lwf: 0, registerDeductsLWF: false,
+    },
   };
+
+  // Fallback contracted-manpower data (mirrors Master Manpower.xlsx as of the last time
+  // this tool was rebuilt) — used only until the user drops a fresher copy of that file,
+  // at which point buildProjects() below rebuilds this from the real file instead.
+  const MASTER_DEFAULTS = [
+    { project: 'PBB Mihan Nagpur', location: 'Nagpur', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 7, 'Highly Skilled': 1 } },
+    { project: 'BHS Calicut', location: 'Calicut', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 0, 'Highly Skilled': 5 } },
+    { project: 'BHS ITC JAMMU', location: 'Jammu', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 1, 'Highly Skilled': 0 } },
+    { project: 'BHS O&M Surat', location: 'Surat', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 10, 'Skilled': 6, 'Highly Skilled': 3 } },
+  ];
+
+  const MASTER_STORAGE_KEY = 'baseline_master_manpower_rows_v1';
   const CUSTOM_KEY = '__custom__';
+
+  // Merge Master Manpower.xlsx's contracted-headcount rows with the RATE_DEFAULTS
+  // statutory figures to build the project dropdown's data. A project the master file
+  // lists but RATE_DEFAULTS doesn't know about yet still shows up — with its rates left
+  // at 0 for the user to fill in manually.
+  function findRateDefaults(projectName) {
+    if (RATE_DEFAULTS[projectName]) return RATE_DEFAULTS[projectName];
+    const lower = projectName.toLowerCase();
+    const match = Object.values(RATE_DEFAULTS).find(rd =>
+      (rd.matchTokens || []).some(t => lower.includes(t)));
+    return match || null;
+  }
+
+  function buildProjects(masterRows) {
+    const projects = {};
+    (masterRows || []).forEach(row => {
+      if (!row.project) return;
+      const rd = findRateDefaults(row.project) || {};
+      projects[row.project] = {
+        matchTokens: rd.matchTokens || [row.project.toLowerCase()],
+        location: rd.locationLabel || row.location || '',
+        contract: {
+          'Highly Skilled': row.contract['Highly Skilled'] || 0,
+          'Skilled': row.contract['Skilled'] || 0,
+          'Semi Skilled': row.contract['Semi Skilled'] || 0,
+          'Unskilled': row.contract['Unskilled'] || 0,
+        },
+        rates: rd.rates || {},
+        pf: rd.pf ?? 1800,
+        ptax: rd.ptax ?? 0,
+        lwf: rd.lwf ?? 0,
+        registerDeductsLWF: rd.registerDeductsLWF ?? false,
+        projectStart: row.start || '',
+        projectEnd: row.end || '',
+        revenue: row.revenue || '',
+      };
+    });
+    return projects;
+  }
+
+  function loadMasterRows() {
+    try {
+      const raw = localStorage.getItem(MASTER_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch (e) { /* localStorage unavailable or corrupt — fall through to defaults */ }
+    return MASTER_DEFAULTS;
+  }
+
+  function saveMasterRows(rows) {
+    try { localStorage.setItem(MASTER_STORAGE_KEY, JSON.stringify(rows)); }
+    catch (e) { /* private browsing / storage full — non-fatal, just won't persist */ }
+  }
+
+  let PROJECTS = buildProjects(loadMasterRows());
 
   function rateInputId(cat, which) {
     return 'cfgRate_' + cat.replace(/\s+/g, '') + '_' + which;
@@ -541,8 +679,12 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
 
   buildRateInputsTable();
   populateProjectDropdown();
-  $('cfgProject').value = 'BHS Calicut';
-  applyProjectPreset('BHS Calicut');
+  (function selectDefaultProject() {
+    const defaultName = PROJECTS['BHS Calicut'] ? 'BHS Calicut' : Object.keys(PROJECTS)[0];
+    if (!defaultName) return;
+    $('cfgProject').value = defaultName;
+    applyProjectPreset(defaultName);
+  })();
   $('cfgProject').addEventListener('change', (e) => {
     applyProjectPreset(e.target.value);
     $('fieldCustomName').style.display = e.target.value === CUSTOM_KEY ? 'flex' : 'none';
@@ -681,6 +823,48 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
         name: r[idxName],
         incentiveOT: incentiveCol >= 0 ? (Number(r[incentiveCol]) || 0) : 0,
         remarks: r.filter(v => typeof v === 'string' && v.length > 20).join(' ') || '',
+      });
+    }
+    return out;
+  }
+
+  // Parses Master Manpower.xlsx's single sheet: Sno, Project, Location, Project Start,
+  // Project End, Revenue Amount per Month, Unskilled, Semi Skilled, Skilled,
+  // Highly Skilled, Fair Wages, Total Manpower.
+  function parseMasterManpower(wb) {
+    const wsName = wb.SheetNames.find(n => n.toLowerCase().includes('manpower')) || wb.SheetNames[0];
+    const rows = sheetToRows(wb.Sheets[wsName]);
+    const hIdx = findHeaderRow(rows, 'Project');
+    if (hIdx === -1) throw new Error('Could not find the "Project" header row.');
+    const header = rows[hIdx].map(c => (typeof c === 'string' ? c.trim() : c));
+    const idx = {
+      project: colIndex(header, 'Project'),
+      location: colIndex(header, 'Location'),
+      start: colIndexContains(header, 'Project Start'),
+      end: colIndexContains(header, 'Project End'),
+      revenue: colIndexContains(header, 'Revenue'),
+      unskilled: colIndex(header, 'Unskilled'),
+      semiSkilled: colIndex(header, 'Semi Skilled'),
+      skilled: colIndex(header, 'Skilled'),
+      highlySkilled: colIndex(header, 'Highly Skilled'),
+    };
+    if (idx.project === -1) throw new Error('Could not find a "Project" column.');
+    const out = [];
+    for (let i = hIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r[idx.project] === null || r[idx.project] === undefined || r[idx.project] === '') continue;
+      out.push({
+        project: String(r[idx.project]).trim(),
+        location: idx.location >= 0 ? r[idx.location] : '',
+        start: idx.start >= 0 ? r[idx.start] : '',
+        end: idx.end >= 0 ? r[idx.end] : '',
+        revenue: idx.revenue >= 0 ? r[idx.revenue] : '',
+        contract: {
+          'Unskilled': idx.unskilled >= 0 ? (Number(r[idx.unskilled]) || 0) : 0,
+          'Semi Skilled': idx.semiSkilled >= 0 ? (Number(r[idx.semiSkilled]) || 0) : 0,
+          'Skilled': idx.skilled >= 0 ? (Number(r[idx.skilled]) || 0) : 0,
+          'Highly Skilled': idx.highlySkilled >= 0 ? (Number(r[idx.highlySkilled]) || 0) : 0,
+        },
       });
     }
     return out;
@@ -896,6 +1080,22 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   }
 
   // ---------- render ----------
+  // Click any data row to highlight it (useful when scanning a long Rates Table for one
+  // employee); clicking again, or a different row, toggles/moves the highlight. Purely
+  // visual — doesn't affect the computed figures.
+  function enableRowSelect(tableId) {
+    const table = $(tableId);
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.addEventListener('click', (e) => {
+      const row = e.target.closest('tr.row-selectable');
+      if (!row) return;
+      const wasSelected = row.classList.contains('selected');
+      tbody.querySelectorAll('tr.selected').forEach(tr => tr.classList.remove('selected'));
+      if (!wasSelected) row.classList.add('selected');
+    });
+  }
+
   function render(result) {
     const r = result;
     const closes = Math.abs(r.finalGross) < 1 && Math.abs(r.finalNet) < 1;
@@ -915,10 +1115,11 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       const c = r.cfg.contract[cat] || 0, a = r.actualByCat[cat] || 0;
       cTot += c; aTot += a;
       const v = a - c;
-      mHtml += `<tr><td>${cat}</td><td class="num">${c}</td><td class="num">${a}</td><td class="num">${vPill(v)}</td></tr>`;
+      mHtml += `<tr class="row-selectable"><td>${cat}</td><td class="num">${c}</td><td class="num">${a}</td><td class="num">${vPill(v)}</td></tr>`;
     });
     mHtml += `<tr class="total"><td>Total</td><td class="num">${cTot}</td><td class="num">${aTot}</td><td class="num">${vPill(aTot - cTot)}</td></tr></tbody>`;
     $('tblManpower').innerHTML = mHtml;
+    enableRowSelect('tblManpower');
 
     function vPill(v) {
       if (v === 0) return `<span class="pill ok"><span class="dot"></span>0</span>`;
@@ -928,21 +1129,23 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     // Statutory rate table
     let sHtml = `<thead><tr><th>Category</th><th>Location</th><th class="num">Previous</th><th class="num">Current</th><th class="num">Change</th></tr></thead><tbody>`;
     r.rateRows.forEach(row => {
-      if (row.curr === null) { sHtml += `<tr><td>${row.cat}</td><td>${r.cfg.location}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>`; return; }
+      if (row.curr === null) { sHtml += `<tr class="row-selectable"><td>${row.cat}</td><td>${r.cfg.location}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>`; return; }
       const change = (row.curr - row.prev) / row.prev;
-      sHtml += `<tr><td>${row.cat}</td><td>${r.cfg.location}</td><td class="num">₹${fmt(row.prev)}</td><td class="num">₹${fmt(row.curr)}</td><td class="num">${pct(change)}</td></tr>`;
+      sHtml += `<tr class="row-selectable"><td>${row.cat}</td><td>${r.cfg.location}</td><td class="num">₹${fmt(row.prev)}</td><td class="num">₹${fmt(row.curr)}</td><td class="num">${pct(change)}</td></tr>`;
     });
     sHtml += `</tbody>`;
     $('tblRate').innerHTML = sHtml;
+    enableRowSelect('tblRate');
 
     // Rates table (per employee)
     let rHtml = `<thead><tr><th>Emp Code</th><th>Employee</th><th>Category</th><th>DOJ</th><th class="num">Gross</th><th class="num">PF</th><th class="num">Ptax</th><th class="num">LWF</th><th class="num">Net</th></tr></thead><tbody>`;
     r.ratesRows.forEach(row => {
-      rHtml += `<tr><td class="mono">${row.empId}</td><td>${row.name}</td><td>${row.category}</td><td>${row.doj || ''}</td>
+      rHtml += `<tr class="row-selectable"><td class="mono">${row.empId}</td><td>${row.name}</td><td>${row.category}</td><td>${row.doj || ''}</td>
         <td class="num">₹${fmt(row.stdGross)}</td><td class="num">₹${fmt(row.pf)}</td><td class="num">₹${fmt(row.ptax)}</td><td class="num">₹${fmt(row.lwf)}</td><td class="num">₹${fmt(row.stdNet)}</td></tr>`;
     });
     rHtml += `<tr class="total"><td colspan="4">Total</td><td class="num">₹${fmt(r.ratesTotal.gross)}</td><td class="num">₹${fmt(r.ratesTotal.pf)}</td><td class="num">₹${fmt(r.ratesTotal.ptax)}</td><td class="num">₹${fmt(r.ratesTotal.lwf)}</td><td class="num">₹${fmt(r.ratesTotal.net)}</td></tr></tbody>`;
     $('tblRates').innerHTML = rHtml;
+    enableRowSelect('tblRates');
 
     // Reconciliation block
     const closesFinal = Math.abs(r.finalGross) < 1 && Math.abs(r.finalNet) < 1;
