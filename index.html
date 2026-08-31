@@ -369,6 +369,7 @@
         <div class="field"><label>Contract Skilled</label><input id="cfgContractSK" type="number" value="0" /></div>
         <div class="field"><label>Contract Semi Skilled</label><input id="cfgContractSS" type="number" value="0" /></div>
         <div class="field"><label>Contract Unskilled</label><input id="cfgContractUS" type="number" value="0" /></div>
+        <div class="field"><label>Contract Fair Wages</label><input id="cfgContractFW" type="number" value="0" /></div>
       </div>
 
       <div class="field" style="margin-top:14px;">
@@ -468,7 +469,16 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   // Source of truth for contracted manpower is Master Manpower.xlsx; location→area and statutory
   // rates come from Master_MW_Skill Mapping_Locations.xlsx's Location and MW/CLC sheets. Add a new
   // project here (and re-embed) whenever the master files get a new row, so the dropdown stays current.
+  // The four statutory skill categories — these drive the rate-input grid, the
+  // Statutory Rate table, and per-employee classification in the Rates Table, since
+  // they map directly to CLC/MW notification categories.
   const CATEGORIES = ['Highly Skilled', 'Skilled', 'Semi Skilled', 'Unskilled'];
+  // Contracted manpower can also include "Fair Wages" — a company-fixed wage category
+  // outside the statutory CLC/MW slabs — so it's tracked separately here and only used
+  // for the Manpower Deployment contract/actual/variance comparison, not the statutory
+  // rate table. No designation auto-classifies into it (no such mapping is known yet),
+  // so its "Actual" count in that table stays 0 until manually accounted for.
+  const CONTRACT_CATEGORIES = [...CATEGORIES, 'Fair Wages'];
 
   // Statutory rate / PF / Ptax / LWF defaults per project — these live outside
   // Master Manpower.xlsx (which only carries contracted headcount), so they're kept
@@ -518,13 +528,13 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   // at which point buildProjects() below rebuilds this from the real file instead.
   const MASTER_DEFAULTS = [
     { project: 'PBB Mihan Nagpur', location: 'Nagpur', start: '', end: '', revenue: '',
-      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 7, 'Highly Skilled': 1 } },
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 7, 'Highly Skilled': 1, 'Fair Wages': 0 } },
     { project: 'BHS Calicut', location: 'Calicut', start: '', end: '', revenue: '',
-      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 0, 'Highly Skilled': 5 } },
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 0, 'Highly Skilled': 5, 'Fair Wages': 0 } },
     { project: 'BHS ITC JAMMU', location: 'Jammu', start: '', end: '', revenue: '',
-      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 1, 'Highly Skilled': 0 } },
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 1, 'Highly Skilled': 0, 'Fair Wages': 0 } },
     { project: 'BHS O&M Surat', location: 'Surat', start: '', end: '', revenue: '',
-      contract: { 'Unskilled': 0, 'Semi Skilled': 10, 'Skilled': 6, 'Highly Skilled': 3 } },
+      contract: { 'Unskilled': 0, 'Semi Skilled': 10, 'Skilled': 6, 'Highly Skilled': 3, 'Fair Wages': 2 } },
   ];
 
   const MASTER_STORAGE_KEY = 'baseline_master_manpower_rows_v1';
@@ -555,6 +565,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
           'Skilled': row.contract['Skilled'] || 0,
           'Semi Skilled': row.contract['Semi Skilled'] || 0,
           'Unskilled': row.contract['Unskilled'] || 0,
+          'Fair Wages': row.contract['Fair Wages'] || 0,
         },
         rates: rd.rates || {},
         pf: rd.pf ?? 1800,
@@ -646,7 +657,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   }
 
   function applyProjectPreset(name) {
-    const editableIds = ['cfgLocation', 'cfgContractHS', 'cfgContractSK', 'cfgContractSS', 'cfgContractUS',
+    const editableIds = ['cfgLocation', 'cfgContractHS', 'cfgContractSK', 'cfgContractSS', 'cfgContractUS', 'cfgContractFW',
       ...getRateInputIds(), 'cfgPF', 'cfgPtax', 'cfgLWF'];
     if (name === CUSTOM_KEY) {
       editableIds.forEach(id => $(id).disabled = false);
@@ -659,6 +670,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     $('cfgContractSK').value = p.contract['Skilled'];
     $('cfgContractSS').value = p.contract['Semi Skilled'];
     $('cfgContractUS').value = p.contract['Unskilled'];
+    $('cfgContractFW').value = p.contract['Fair Wages'] || 0;
     CATEGORIES.forEach(cat => {
       const r = p.rates[cat] || { prev: 0, curr: 0 };
       $(rateInputId(cat, 'prev')).value = r.prev;
@@ -708,13 +720,23 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     input.addEventListener('change', () => { if (input.files.length) onFile(input.files[0]); });
   }
 
+  // Real-world Excel files often report a "used range" far larger than their actual
+  // data (formatting applied to whole columns/rows, a stray cell touched way out at
+  // column ZZ, a huge pasted-then-cleared block, etc.). Parsing that whole bloated
+  // range can freeze the browser tab for a long time even on an otherwise small file.
+  // Cap it — real salary registers/variance files are at most a few hundred rows.
+  const SHEET_MAX_ROWS = 3000;
+  const SHEET_MAX_COLS = 150;
+
   function readWorkbook(file, password) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const data = new Uint8Array(e.target.result);
-          const opts = { type: 'array', cellDates: true };
+          // sheetRows caps parsing at read-time (the expensive step) — far more
+          // effective than trimming the range after the fact.
+          const opts = { type: 'array', cellDates: true, sheetRows: SHEET_MAX_ROWS };
           if (password) opts.password = password;
           const wb = XLSX.read(data, opts);
           resolve(wb);
@@ -725,7 +747,24 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     });
   }
 
+  // Secondary safety net: sheetRows (above) already caps rows at read-time, but a sheet
+  // can still report an absurd column count (e.g. formatting dragged out to column ZZ)
+  // — clamp that too before the row-by-row-to-JSON conversion.
+  function clampSheetRange(ws) {
+    if (!ws || !ws['!ref']) return ws;
+    try {
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      const rowCount = range.e.r - range.s.r + 1;
+      const colCount = range.e.c - range.s.c + 1;
+      if (rowCount > SHEET_MAX_ROWS) range.e.r = range.s.r + SHEET_MAX_ROWS - 1;
+      if (colCount > SHEET_MAX_COLS) range.e.c = range.s.c + SHEET_MAX_COLS - 1;
+      ws['!ref'] = XLSX.utils.encode_range(range);
+    } catch (e) { /* if range parsing itself fails, fall through and try as-is */ }
+    return ws;
+  }
+
   function sheetToRows(ws) {
+    clampSheetRange(ws);
     return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
   }
 
@@ -851,6 +890,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       semiSkilled: colIndex(header, 'Semi Skilled'),
       skilled: colIndex(header, 'Skilled'),
       highlySkilled: colIndex(header, 'Highly Skilled'),
+      fairWages: colIndex(header, 'Fair Wages'),
     };
     if (idx.project === -1) throw new Error('Could not find a "Project" column.');
     const out = [];
@@ -868,6 +908,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
           'Semi Skilled': idx.semiSkilled >= 0 ? (Number(r[idx.semiSkilled]) || 0) : 0,
           'Skilled': idx.skilled >= 0 ? (Number(r[idx.skilled]) || 0) : 0,
           'Highly Skilled': idx.highlySkilled >= 0 ? (Number(r[idx.highlySkilled]) || 0) : 0,
+          'Fair Wages': idx.fairWages >= 0 ? (Number(r[idx.fairWages]) || 0) : 0,
         },
       });
     }
@@ -880,7 +921,22 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     $(statusId).textContent = 'Loaded ✓';
   }
 
+  // A genuine salary register/variance file is rarely more than a couple MB. Anything
+  // far larger is a red flag for a bloated/corrupted file that could hang the browser
+  // during parsing — warn instead of silently attempting it and freezing the tab.
+  const FILE_SIZE_WARN_MB = 20;
+  function checkFileSize(file) {
+    const mb = file.size / (1024 * 1024);
+    if (mb > FILE_SIZE_WARN_MB) {
+      toast(`"${file.name}" is ${mb.toFixed(1)} MB — unusually large for a payroll file and may take a while or hang this tab. Consider re-saving it in Excel first (this often shrinks bloated files dramatically).`);
+      return false;
+    }
+    return true;
+  }
+
   wireDrop('dropRegister', 'inputRegister', async (file) => {
+    if (!checkFileSize(file)) return;
+    $('statusRegister').textContent = 'Reading…';
     try {
       const wb = await readWorkbook(file);
       state.registerWB = wb;
@@ -902,11 +958,14 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
 
       maybeEnable();
     } catch (err) {
+      $('statusRegister').textContent = '.xlsx';
       toast('Salary register: ' + err.message);
     }
   });
 
   wireDrop('dropVariance', 'inputVariance', async (file) => {
+    if (!checkFileSize(file)) return;
+    $('statusVariance').textContent = 'Reading…';
     try {
       const pw = $('pwInput').value || undefined;
       const wb = await readWorkbook(file, pw);
@@ -916,6 +975,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       $('pwField').style.display = 'none';
       maybeEnable();
     } catch (err) {
+      $('statusVariance').textContent = '.xlsx';
       if (String(err.message || err).toLowerCase().includes('password')) {
         $('pwField').style.display = 'flex';
         toast('This variance file is password-protected — enter the password and drop it again.');
@@ -993,6 +1053,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
         'Skilled': Number($('cfgContractSK').value) || 0,
         'Semi Skilled': Number($('cfgContractSS').value) || 0,
         'Unskilled': Number($('cfgContractUS').value) || 0,
+        'Fair Wages': Number($('cfgContractFW').value) || 0,
       },
       rates: readRatesFromInputs(),
       pf: Number($('cfgPF').value) || 0,
@@ -1005,8 +1066,10 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     const varianceByEmp = {};
     (state.varianceRows || []).forEach(v => { varianceByEmp[String(v.empId).trim()] = v; });
 
-    // Manpower actual by category
-    const actualByCat = { 'Highly Skilled': 0, 'Skilled': 0, 'Semi Skilled': 0, 'Unskilled': 0 };
+    // Manpower actual by category. 'Fair Wages' has no designation-based
+    // auto-classification (classifySkill never returns it), so its Actual
+    // count always starts at 0 here unless/until such a mapping exists.
+    const actualByCat = { 'Highly Skilled': 0, 'Skilled': 0, 'Semi Skilled': 0, 'Unskilled': 0, 'Fair Wages': 0 };
     employees.forEach(e => { actualByCat[e.category] = (actualByCat[e.category] || 0) + 1; });
 
     const monthLabel = (() => {
@@ -1112,7 +1175,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     `;
 
     // Manpower table
-    const cats = ['Highly Skilled', 'Skilled', 'Semi Skilled', 'Unskilled'];
+    const cats = CONTRACT_CATEGORIES;
     let mHtml = `<thead><tr><th>Category</th><th class="num">Contracted</th><th class="num">Actual</th><th class="num">Variance</th></tr></thead><tbody>`;
     let cTot = 0, aTot = 0;
     cats.forEach(cat => {
