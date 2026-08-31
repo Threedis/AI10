@@ -511,15 +511,31 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     },
     'BHS ITC JAMMU': {
       matchTokens: ['itc jammu', 'jammu'],
-      // Statutory rates for Jammu not yet supplied — pick "Custom" or fill the
-      // per-category rate grid manually until these are confirmed.
-      rates: {}, pf: 1800, ptax: 0, lwf: 0, registerDeductsLWF: false,
+      locationLabel: 'Jammu (Area "B")',
+      rates: { // per-category, Central Govt CLC Area B, Oct 2025 -> Apr 2026 notification
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // J&K levies no Professional Tax and has no LWF act — both stay 0.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
     },
     'BHS O&M Surat': {
       matchTokens: ['o&m surat', 'surat'],
-      // Statutory rates for Surat not yet supplied — pick "Custom" or fill the
-      // per-category rate grid manually until these are confirmed.
-      rates: {}, pf: 1800, ptax: 0, lwf: 0, registerDeductsLWF: false,
+      locationLabel: 'Surat (Area "B")',
+      rates: { // per-category, Central Govt CLC Area B, Oct 2025 -> Apr 2026 notification
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // Gujarat: top Ptax slab (12000 & above) = 200/month. LWF is half-yearly
+      // (Jun & Dec, Rs.6/employee) rather than a monthly line, so it's kept at
+      // 0 here by default the same way Maharashtra's half-yearly LWF is.
+      pf: 1800, ptax: 200, lwf: 0,
+      registerDeductsLWF: false,
     },
   };
 
