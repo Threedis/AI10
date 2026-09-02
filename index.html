@@ -534,6 +534,27 @@
     <div class="card" style="padding:0; overflow:hidden;">
       <div id="reconBlock"></div>
     </div>
+
+    <div id="remarksCard" class="card" style="display:none; margin-top:14px;">
+      <div style="font-weight:700; margin-bottom:6px;">Variance file remarks (for reference)</div>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">These are the free-text notes from the variance file, shown as-is — read them yourself to work out each employee's Incentive / OT / Maintenance OT / LWP / roster split, then add the matching line item below. Amounts aren't auto-derived from this text.</div>
+      <div id="remarksList" style="font-size:13px; line-height:1.6;"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="font-weight:700; margin-bottom:6px;">Add a reconciliation line item</div>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">Use this for anything the variance file's remarks describe but the tool can't auto-detect — e.g. "5 OT Payable = 26,208/26 × 5" or "4,000 Incentive as per Contract".</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+        <div style="flex:2; min-width:220px;"><label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Label</label>
+          <input type="text" id="manualReconLabel" placeholder="e.g. 5 OT Payable = 26,208/26 × 5" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border); border-radius:6px;"></div>
+        <div style="flex:1; min-width:120px;"><label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Gross ₹ (+/-)</label>
+          <input type="number" id="manualReconGross" placeholder="5040" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border); border-radius:6px;"></div>
+        <div style="flex:1; min-width:120px;"><label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Net ₹ (+/-)</label>
+          <input type="number" id="manualReconNet" placeholder="same as Gross" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border); border-radius:6px;"></div>
+        <button id="btnAddRecon" class="primary" type="button" style="padding:8px 16px;">Add item</button>
+      </div>
+      <div id="manualReconList" style="margin-top:12px;"></div>
+    </div>
   </div>
 
   <footer>Baseline Studio · runs entirely in your browser · Three D Integrated Solutions Ltd.</footer>
@@ -574,6 +595,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   const fmtSigned = (n) => (n === null || n === undefined || isNaN(n)) ? '—' :
     (n > 0 ? '+' : '') + Math.round(n).toLocaleString('en-IN');
   const pct = (n) => (n * 100).toFixed(2) + '%';
+  const pad2 = (n) => String(Math.abs(Math.round(n))).padStart(2, '0');
 
   function toast(msg) {
     const t = $('toast');
@@ -584,6 +606,9 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   }
 
   const state = { registerWB: null, registerRows: null, varianceWB: null, varianceRows: null, varianceHeader: null };
+  // Manually-entered reconciliation line items (label + gross + net), added via the
+  // "Add a reconciliation line item" control. In-memory only for this session/page load.
+  const manualReconItems = [];
 
   // ---------- embedded project master (from Master Manpower.xlsx + Master_MW_Skill Mapping_Locations.xlsx) ----------
   // Source of truth for contracted manpower is Master Manpower.xlsx; location→area and statutory
@@ -1849,6 +1874,16 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     return headerRow.findIndex(c => typeof c === 'string' && c.toLowerCase().includes(marker.toLowerCase()));
   }
 
+  // Like colIndexContains, but skips any column whose header also contains `excludeMarker` —
+  // needed because Three D's salary register export carries both a "(Th)" theoretical/budgeted
+  // column and a plain actual column for the same label (e.g. " PERF INCEN (Th)" vs
+  // " PERF INCEN"), and only the actual one is the real paid amount.
+  function colIndexContainsNot(headerRow, marker, excludeMarker) {
+    return headerRow.findIndex(c => typeof c === 'string'
+      && c.toLowerCase().includes(marker.toLowerCase())
+      && !c.toLowerCase().includes(excludeMarker.toLowerCase()));
+  }
+
   function parseRegister(wb) {
     const wsName = wb.SheetNames.find(n => n.toLowerCase().includes('salary')) || wb.SheetNames[0];
     const rows = sheetToRows(wb.Sheets[wsName]);
@@ -1867,6 +1902,17 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       netAmount: colIndexContains(header, 'Net Amount'),
       branch: colIndexContains(header, 'Branch'),
       division: colIndexContains(header, 'Division'),
+      // Three D's standard salary-register export template also carries, per employee: the
+      // theoretical/statutory gross for that employee's category ("Total Earning(Th)" — this
+      // is the "Gross Pay" figure the OT/LWP/roster formulas divide by 26), the calendar days
+      // used for that month's salary calc ("Sal Cal Days"), the actual days paid ("Pay Days"),
+      // the number of OT days ("NO OF H/D"), the number of Loss-of-Pay days ("LOP AVAILED"),
+      // and the actual incentive paid ("PERF INCEN", not the "(Th)" budgeted one).
+      stdGrossTh: colIndexContains(header, 'Total Earning(Th)'),
+      salCalDays: colIndexContains(header, 'Sal Cal Days'),
+      otDays: colIndexContains(header, 'NO OF H/D'),
+      lwpDays: colIndexContains(header, 'LOP AVAILED'),
+      perfIncen: colIndexContainsNot(header, 'PERF INCEN', '(th)'),
     };
     const out = [];
     for (let i = hIdx + 1; i < rows.length; i++) {
@@ -1884,6 +1930,11 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
         net: Number(r[idx.netAmount]) || 0,
         branch: idx.branch >= 0 ? r[idx.branch] : '',
         division: idx.division >= 0 ? r[idx.division] : '',
+        stdGrossTh: idx.stdGrossTh >= 0 ? (Number(r[idx.stdGrossTh]) || 0) : 0,
+        salCalDays: idx.salCalDays >= 0 ? (Number(r[idx.salCalDays]) || 0) : 0,
+        otDays: idx.otDays >= 0 ? (Number(r[idx.otDays]) || 0) : 0,
+        lwpDays: idx.lwpDays >= 0 ? (Number(r[idx.lwpDays]) || 0) : 0,
+        perfIncen: idx.perfIncen >= 0 ? (Number(r[idx.perfIncen]) || 0) : 0,
       });
     }
     return out;
@@ -1908,6 +1959,46 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     return best;
   }
 
+  // Finds each named variance component's own column, so Incentive / OT / Maintenance OT /
+  // LWP / Extra days (roster) each get pulled out and shown as their own reconciliation line
+  // instead of one lumped figure. Matching is by header keyword, so it adapts to whatever a
+  // richer variance file calls its columns — a component simply reads as "not found" if this
+  // file has no dedicated column for it. Maintenance OT is matched before plain OT so it
+  // isn't swallowed by the broader "ot" pattern; an OT hours/days column (if present) is
+  // captured too so the reconciliation line can show "hours × rate" rather than a bare amount.
+  function findVarianceColumns(header) {
+    const test = (re) => header.findIndex(c => typeof c === 'string' && re.test(c));
+    const maintenanceOT = test(/maintenance/i);
+    const otHours = test(/o\.?\s?t\.?\s*(hours|hrs|days)/i);
+    const otRate = test(/o\.?\s?t\.?\s*rate/i);
+    const ot = header.findIndex((c, ci) => ci !== maintenanceOT && ci !== otHours && ci !== otRate
+      && typeof c === 'string' && (/\bo\.?\s?t\.?\b/i.test(c) || /overtime/i.test(c))
+      && !/maintenance/i.test(c) && !/(rate|hour|hrs|days?)/i.test(c));
+    const incentive = test(/incentive/i);
+    const lwp = test(/lwp|loss\s*of\s*pay/i);
+    const roster = test(/roster|extra\s*(man\s*)?day/i);
+    return { maintenanceOT, ot, otHours, otRate, incentive, lwp, roster };
+  }
+
+  // Finds a 2-or-3-column group (e.g. "JUL"/"JUN"/"DIFF") sitting under a merged group label
+  // that contains `keyword`, by locating the label in the row above the header row and then
+  // reading forward from that column until the run of populated header cells ends. Handles
+  // the common Three D variance layout: 'GROSS PAY' / 'INCENTIVE+OT' / 'NETPAY' each span a
+  // JUL / JUN / DIFF triple, with the group label written once in the leftmost of the three.
+  function findGroupCols(groupRow, header, keyword) {
+    let start = -1;
+    for (let c = 0; c < groupRow.length; c++) {
+      if (typeof groupRow[c] === 'string' && groupRow[c].toLowerCase().includes(keyword)) { start = c; break; }
+    }
+    if (start === -1) return null;
+    const cols = [];
+    for (let c = start; c < header.length && cols.length < 3; c++) {
+      if (header[c] !== null && header[c] !== undefined && header[c] !== '') cols.push(c);
+      else if (cols.length > 0) break;
+    }
+    return cols.length ? cols : null;
+  }
+
   function parseVariance(wb) {
     const wsName = wb.SheetNames.find(n => n.toLowerCase().includes('varian')) || wb.SheetNames[0];
     const rows = sheetToRows(wb.Sheets[wsName]);
@@ -1916,21 +2007,39 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     const header = rows[hIdx].map(c => (typeof c === 'string' ? c.trim() : c));
     const idxCode = colIndexContains(header, 'EMP CODE');
     const idxName = colIndexContains(header, 'Employee Name');
-    // "INCENTIVE+OT" block: find the group label row above and pick the first data column after it
-    const groupRow = rows[hIdx - 1] || [];
-    let incentiveCol = -1;
-    for (let c = 0; c < groupRow.length; c++) {
-      if (typeof groupRow[c] === 'string' && groupRow[c].toLowerCase().includes('incentive')) { incentiveCol = c; break; }
-    }
+    const idx = findVarianceColumns(header);
+    const idxRemarks = colIndexContains(header, 'remark');
+
+    // Deliberately no group-diff heuristic here. Many Three D variance files only carry a
+    // merged "INCENTIVE+OT" (JUL/JUN/DIFF) and "GROSS PAY" (JUL/JUN/DIFF) pair, with the real
+    // Incentive/OT/Maintenance OT/LWP/roster breakdown living only in free-text remarks (e.g.
+    // "9 OT (05 OT AGNST 6 LWP + 4 OT for maintenance) + 4K INCENTIVE"). A regex/column-diff
+    // heuristic over those numbers produced wrong-signed, meaninglessly small figures and
+    // garbled multi-employee remark text when tried. So: only pull a figure here when the file
+    // has an actual named column for it (idx.*); otherwise leave it at 0 and surface that
+    // employee's own Remarks-column text as-is so a human can read it and add the matching
+    // line item by hand via the "Add a reconciliation line item" control.
     const out = [];
     for (let i = hIdx + 1; i < rows.length; i++) {
       const r = rows[i];
       if (!r || r[idxCode] === null || r[idxCode] === undefined || r[idxCode] === '') continue;
+
+      const incentive = idx.incentive >= 0 ? (Number(r[idx.incentive]) || 0) : 0;
+      const ot = idx.ot >= 0 ? (Number(r[idx.ot]) || 0) : 0;
+      const roster = idx.roster >= 0 ? (Number(r[idx.roster]) || 0) : 0;
+      const lwp = idx.lwp >= 0 ? (Number(r[idx.lwp]) || 0) : 0;
+      const otHours = idx.otHours >= 0 ? (Number(r[idx.otHours]) || 0) : 0;
+      const otRate = idx.otRate >= 0 ? (Number(r[idx.otRate]) || 0) : 0;
+      const maintenanceOT = idx.maintenanceOT >= 0 ? (Number(r[idx.maintenanceOT]) || 0) : 0;
+      const remarks = idxRemarks >= 0 ? String(r[idxRemarks] == null ? '' : r[idxRemarks]).trim() : '';
+
       out.push({
         empId: r[idxCode],
         name: r[idxName],
-        incentiveOT: incentiveCol >= 0 ? (Number(r[incentiveCol]) || 0) : 0,
-        remarks: r.filter(v => typeof v === 'string' && v.length > 20).join(' ') || '',
+        incentive, ot, otHours, otRate, maintenanceOT, lwp, roster,
+        // Legacy combined field, kept so any old code path that still reads it doesn't break.
+        incentiveOT: incentive + ot + maintenanceOT,
+        remarks,
       });
     }
     return out;
@@ -2304,47 +2413,141 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     const diffGross = ratesTotal.gross - registerGross;
     const diffNet = ratesTotal.net - registerNet;
 
-    // Reconciliation build-up
+    // Reconciliation build-up. Incentive and OT are pulled straight from the salary register's
+    // own columns for each employee — PERF INCEN for the actual incentive paid, and NO OF H/D
+    // (OT days) × Total Earning(Th)/26 (the "Gross Pay" for that employee's category) for OT —
+    // and shown as two separate expandable lines. LWP (from LOP AVAILED) and extra roster days
+    // (Pay Days beyond Sal Cal Days) each get their own expandable line too, using the same
+    // Gross Pay/26 × days formula. A Maintenance OT line only appears when the variance file
+    // has an explicit named column for it — the register has no way to tell regular OT days
+    // from maintenance OT days on its own, so any such split (e.g. "5 OT Payable" vs "4
+    // Maintenance OT Payable" at a different rate) needs a manual line item — see the "Add a
+    // reconciliation line item" control below.
     const reconItems = [];
-    let incentiveTotal = 0, extraDayTotal = 0, personalPremiumTotal = 0;
-    const incentiveNames = [], extraDayNames = [];
+    let incentiveTotal = 0, otTotal = 0, otDaysTotal = 0, maintenanceOTTotal = 0, lwpTotal = 0, lwpDaysTotal = 0, rosterTotal = 0, rosterDaysTotal = 0, personalPremiumTotal = 0;
+    const incentiveDetails = [], otDetails = [], maintenanceOTNames = [], lwpDetails = [], rosterDetails = [], personalPremiumDetails = [];
     employees.forEach(e => {
       const monthKey = monthKeyFromValue(e.month);
       const stdGross = standardGrossFor(e, cfg, monthKey).gross; // per-employee override-aware standard, not a flat category rate
-      const perDay = stdGross / 26;
+      // Prefer the register's own "Total Earning(Th)" (the statutory Gross Pay for this
+      // employee's category, exactly what the register itself divides by 26) when present;
+      // fall back to the computed standard gross otherwise.
+      const grossPay = e.stdGrossTh || stdGross;
       const v = varianceByEmp[String(e.empId).trim()];
-      const incentive = v ? v.incentiveOT : 0;
+
+      // Per-day divisor for OT/LWP/roster: Site Incharge always uses a fixed 26, since their
+      // pay cycle is treated as a flat 26-day month regardless of the calendar; everyone else
+      // uses their own Sal Cal Days for that month (28/30/31, not always 26).
+      const isSiteIncharge = /site\s*incharge/i.test(e.designation || '');
+      const divisor = isSiteIncharge ? 26 : (e.salCalDays || 26);
+
+      // Site Incharge gets a fixed ₹4,000/month incentive by default (tied to the designation,
+      // not one Emp ID) — used as a fallback when the register's own PERF INCEN is blank/0 for
+      // whoever currently holds that role.
+      const incentive = e.perfIncen || (isSiteIncharge ? 4000 : 0);
       incentiveTotal += incentive;
-      if (incentive > 0) incentiveNames.push(`${e.name} (₹${fmt(incentive)})`);
-      const extraDays = Math.max(0, (e.payDays || 26) - 26);
-      const extraDayPay = Math.round(perDay * extraDays);
-      if (extraDays > 0) { extraDayTotal += extraDayPay; extraDayNames.push(e.name); }
-      const residual = e.gross - incentive - stdGross - extraDayPay;
-      if (Math.abs(residual) >= 1) personalPremiumTotal += residual;
+      if (incentive) incentiveDetails.push(`${e.name}: ₹${fmt(incentive)} Incentive as per Contract`);
+
+      const otDays = e.otDays || 0;
+      const otAmount = otDays ? Math.round(grossPay / divisor * otDays) : 0;
+      otTotal += otAmount;
+      otDaysTotal += otDays;
+      // A Site Incharge's OT is always worked as maintenance cover (per this project's rules),
+      // so it's labeled distinctly from regular OT rather than lumped in under the same term.
+      if (otAmount) otDetails.push(`${e.name}: ${pad2(otDays)} ${isSiteIncharge ? 'Fix OT (for Maintenance) Payable' : 'OT Payable'} (${fmt(grossPay)}/${divisor}×${otDays}) = ₹${fmt(otAmount)}`);
+
+      const maintenanceOT = v ? (v.maintenanceOT || 0) : 0;
+      maintenanceOTTotal += maintenanceOT;
+      if (maintenanceOT) maintenanceOTNames.push(`${e.name} (₹${fmt(maintenanceOT)})`);
+
+      const lwpDays = e.lwpDays || 0;
+      const lwpAmount = lwpDays ? Math.round(grossPay / divisor * lwpDays) : 0;
+      lwpTotal -= lwpAmount; // deduction
+      lwpDaysTotal += lwpDays;
+      if (lwpAmount) lwpDetails.push(`${e.name}: ${pad2(lwpDays)} LWP (${fmt(grossPay)}/${divisor}×${lwpDays}) = ₹${fmt(lwpAmount)}`);
+
+      // Extra man days due to roster: a day is "extra" when it was actually paid (Pay Days)
+      // beyond what the calendar minus any LWP already accounts for (Sal Cal Days − LWP Days).
+      // Comparing straight to Sal Cal Days alone (ignoring LWP) would hide this whenever an
+      // employee had both LWP and extra duty in the same month — e.g. 26 Sal Cal Days, 6 LWP
+      // days, but 21 Pay Days means 1 day of extra duty is netted in there (21 vs the 20 you'd
+      // expect from 26 − 6), not a mystery gap. A negative result (paid for fewer days than
+      // LWP alone would explain) is a genuine unexplained shortfall, so that still falls
+      // through to the review line below rather than being folded in here.
+      const expectedPayDays = (e.salCalDays || 0) - lwpDays;
+      const rosterDays = e.salCalDays ? ((e.payDays || 0) - expectedPayDays) : 0;
+      const rosterAmount = rosterDays ? Math.round(grossPay / divisor * rosterDays) : 0;
+      if (rosterDays > 0) {
+        rosterTotal += rosterAmount;
+        rosterDaysTotal += rosterDays;
+        rosterDetails.push(`${e.name}: ${pad2(rosterDays)} Days extra as per roster (${fmt(grossPay)}/${divisor}×${rosterDays}) = ₹${fmt(rosterAmount)}`);
+      }
+
+      // What this employee's actual register gross "should" be once every explained
+      // component (standard statutory gross, incentive, OT, maintenance OT, roster days) is
+      // added and LWP is taken back out. Whatever's left over — plus or minus — is genuinely
+      // unexplained and gets called out per employee below, so nothing is silently absorbed.
+      // (A shortfall, i.e. rosterDays < 0 above, lands here too since it wasn't added to roster.)
+      const explainedGross = stdGross + incentive + otAmount + maintenanceOT - lwpAmount + (rosterDays > 0 ? rosterAmount : 0);
+      const residual = e.gross - explainedGross;
+      if (Math.abs(residual) >= 1) {
+        personalPremiumTotal += residual;
+        const direction = residual > 0 ? 'above' : 'below';
+        personalPremiumDetails.push(
+          `${e.name}: Actual pay ₹${fmt(e.gross)} vs Standard ₹${fmt(stdGross)} + Incentive ₹${fmt(incentive)} + OT ₹${fmt(otAmount)} + Maintenance OT ₹${fmt(maintenanceOT)} − LWP ₹${fmt(lwpAmount)} + Roster ₹${fmt(rosterDays > 0 ? rosterAmount : 0)} = ₹${fmt(explainedGross)} — ₹${fmt(Math.abs(residual))} ${direction} what's explained. Could be a personal rate/allowance for this employee, or a data mismatch (e.g. LWP/OT days on the register not matching what was actually paid) — verify with payroll.`
+        );
+      }
     });
 
     if (incentiveTotal !== 0) reconItems.push({
-      label: `Incentive / OT as per Variance file (${incentiveNames.join(', ') || 'see variance file'})`,
+      label: `₹${fmt(incentiveTotal)} Incentive as per Salary Register`,
       gross: incentiveTotal, net: incentiveTotal,
+      details: incentiveDetails,
     });
-    if (extraDayTotal !== 0) reconItems.push({
-      label: `Extra day(s) paid beyond 26-day cycle (${extraDayNames.join(', ') || '—'})`,
-      gross: extraDayTotal, net: extraDayTotal,
+    if (otTotal !== 0) reconItems.push({
+      label: `${pad2(otDaysTotal)} OT (Overtime) as per Salary Register`,
+      gross: otTotal, net: otTotal,
+      details: otDetails,
+    });
+    if (maintenanceOTTotal !== 0) reconItems.push({
+      label: `Maintenance OT as per Variance file`,
+      gross: maintenanceOTTotal, net: maintenanceOTTotal,
+      details: maintenanceOTNames,
+    });
+    if (lwpTotal !== 0) reconItems.push({
+      label: `${pad2(lwpDaysTotal)} LWP (Loss of Pay) as per Salary Register`,
+      gross: lwpTotal, net: lwpTotal,
+      details: lwpDetails,
+    });
+    if (rosterTotal !== 0) reconItems.push({
+      label: `${pad2(rosterDaysTotal)} Extra man days due to roster (as per Salary Register)`,
+      gross: rosterTotal, net: rosterTotal,
+      details: rosterDetails,
     });
     if (Math.abs(personalPremiumTotal) >= 1) reconItems.push({
-      label: `Personal rate above/below statutory floor (residual across employees)`,
+      label: `Unexplained pay difference — needs review (${personalPremiumDetails.length} employee${personalPremiumDetails.length === 1 ? '' : 's'})`,
       gross: personalPremiumTotal, net: personalPremiumTotal,
+      details: personalPremiumDetails,
     });
+
+    // Manually-entered line items (see the "Add a reconciliation line item" control) — for
+    // anything a variance file only describes in free-text remarks, which can't be parsed
+    // reliably. These are entered by whoever prepares the baseline, after reading the remarks.
+    manualReconItems.forEach(m => reconItems.push({ label: m.label, gross: m.gross, net: m.net }));
 
     const reconGrossSum = reconItems.reduce((s, i) => s + i.gross, 0);
     const reconNetSum = reconItems.reduce((s, i) => s + i.net, 0);
     const finalGross = diffGross + reconGrossSum;
     const finalNet = diffNet + reconNetSum;
 
+    const varianceRemarks = employees
+      .map(e => ({ name: e.name, empId: e.empId, remarks: (varianceByEmp[String(e.empId).trim()] || {}).remarks || '' }))
+      .filter(x => x.remarks);
+
     return {
       cfg, employees, actualByCat, rateRows, ratesRows, ratesTotal,
       registerGross, registerNet, diffGross, diffNet,
-      reconItems, reconGrossSum, reconNetSum, finalGross, finalNet, monthLabel,
+      reconItems, reconGrossSum, reconNetSum, finalGross, finalNet, monthLabel, varianceRemarks,
     };
   }
 
@@ -2425,12 +2628,39 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     recon += `<div class="recon-row"><div class="desc">Rates Table total (statutory standard)</div><div class="amt">₹${fmt(r.ratesTotal.gross)}</div><div class="amt">₹${fmt(r.ratesTotal.net)}</div></div>`;
     recon += `<div class="recon-row"><div class="desc">Salary as per Salary Register</div><div class="amt">₹${fmt(r.registerGross)}</div><div class="amt">₹${fmt(r.registerNet)}</div></div>`;
     recon += `<div class="recon-row diff"><div class="desc"><b>Difference</b></div><div class="amt">${fmtSigned(r.diffGross)}</div><div class="amt">${fmtSigned(r.diffNet)}</div></div>`;
-    r.reconItems.forEach(item => {
-      recon += `<div class="recon-row"><div class="desc">${item.label}</div><div class="amt">${item.gross ? fmtSigned(item.gross) : '—'}</div><div class="amt">${fmtSigned(item.net)}</div></div>`;
+    r.reconItems.forEach((item, i) => {
+      const hasDetails = item.details && item.details.length;
+      const toggle = hasDetails ? `<button type="button" class="recon-toggle" data-idx="${i}" style="border:none; background:none; color:var(--accent); cursor:pointer; font:inherit; padding:0 6px 0 0;">+</button>` : '';
+      recon += `<div class="recon-row"><div class="desc">${toggle}${item.label}</div><div class="amt">${item.gross ? fmtSigned(item.gross) : '—'}</div><div class="amt">${fmtSigned(item.net)}</div></div>`;
+      if (hasDetails) {
+        recon += `<div class="recon-row recon-details" data-details="${i}" style="display:none;"><div class="desc" style="padding-left:22px; font-size:12px; color:var(--muted); line-height:1.7;">${item.details.map(d => d.replace(/</g, '&lt;')).join('<br>')}</div><div></div><div></div></div>`;
+      }
     });
     recon += `<div class="recon-row final"><div class="desc"><b>Residual</b></div><div class="amt">${fmtSigned(r.finalGross)}</div><div class="amt">${fmtSigned(r.finalNet)}</div></div>`;
     recon += `<div class="recon-row"><div class="desc">${closesFinal ? '<span class="pill ok"><span class="dot"></span>Reconciles to zero — ready for release</span>' : '<span class="pill crit"><span class="dot"></span>Residual unexplained — review before release</span>'}</div><div></div><div></div></div>`;
     $('reconBlock').innerHTML = recon;
+    $('reconBlock').querySelectorAll('.recon-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = $('reconBlock').querySelector(`[data-details="${btn.dataset.idx}"]`);
+        if (!row) return;
+        const open = row.style.display !== 'none';
+        row.style.display = open ? 'none' : '';
+        btn.textContent = open ? '+' : '−';
+      });
+    });
+
+    // Variance remarks reference panel — read-only, for the human doing the reconciliation.
+    if (r.varianceRemarks && r.varianceRemarks.length) {
+      $('remarksCard').style.display = 'block';
+      $('remarksList').innerHTML = r.varianceRemarks.map(x =>
+        `<div style="padding:6px 0; border-bottom:1px solid var(--border);"><b>${x.name}</b> <span style="color:var(--muted);">(${x.empId})</span> — ${x.remarks}</div>`
+      ).join('');
+    } else {
+      $('remarksCard').style.display = 'none';
+      $('remarksList').innerHTML = '';
+    }
+
+    renderManualReconList();
 
     $('results').classList.add('show');
     $('downloadBar').style.display = 'flex';
@@ -2438,6 +2668,41 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
 
     window.__lastResult = r;
   }
+
+  // ---------- manual reconciliation line items ----------
+  function renderManualReconList() {
+    const box = $('manualReconList');
+    if (!manualReconItems.length) { box.innerHTML = ''; return; }
+    box.innerHTML = manualReconItems.map((m, i) => `
+      <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px;">
+        <div style="flex:1;">${m.label}</div>
+        <div class="mono">₹${fmt(m.gross)}</div>
+        <div class="mono">₹${fmt(m.net)}</div>
+        <button type="button" data-idx="${i}" class="manual-recon-remove" style="border:none; background:none; color:var(--muted); cursor:pointer; font-size:16px; line-height:1;">&times;</button>
+      </div>
+    `).join('');
+    box.querySelectorAll('.manual-recon-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        manualReconItems.splice(Number(btn.dataset.idx), 1);
+        if (window.__lastResult) render(compute());
+      });
+    });
+  }
+
+  $('btnAddRecon').addEventListener('click', () => {
+    const label = $('manualReconLabel').value.trim();
+    const grossVal = $('manualReconGross').value;
+    const netVal = $('manualReconNet').value;
+    if (!label || grossVal === '') { toast('Enter a label and a Gross amount.'); return; }
+    const gross = Number(grossVal) || 0;
+    const net = netVal === '' ? gross : (Number(netVal) || 0);
+    manualReconItems.push({ label, gross, net });
+    $('manualReconLabel').value = '';
+    $('manualReconGross').value = '';
+    $('manualReconNet').value = '';
+    if (window.__lastResult) render(compute());
+    else renderManualReconList();
+  });
 
   $('btnCompute').addEventListener('click', () => {
     try {
@@ -2496,6 +2761,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     aoa.push(['Difference', '', 'Gross', 'Net', r.diffGross, '', '', '', r.diffNet]);
     r.reconItems.forEach(item => {
       aoa.push([item.label, '', '', '', item.gross || '', '', '', '', item.net]);
+      (item.details || []).forEach(d => aoa.push(['   ' + d]));
     });
     aoa.push(['Residual', '', '', '', r.finalGross, '', '', '', r.finalNet]);
     aoa.push(['', '', '', '', '', '', '', '', (Math.abs(r.finalGross) < 1 && Math.abs(r.finalNet) < 1) ? 'OK' : 'REVIEW']);
