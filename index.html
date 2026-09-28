@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
 <!doctype html>
 <title>Baseline Studio</title>
 <meta charset="utf-8" />
@@ -535,6 +536,20 @@
       <div id="reconBlock"></div>
     </div>
 
+    <div id="locationBaselineSection" style="display:none;">
+      <div class="section-band"><span class="num">05</span><h2>Location-wise Baseline &amp; Variance</h2><div class="line"></div></div>
+      <div class="card" style="margin-bottom:10px; font-size:13px; color:var(--muted);">
+        Approved baseline as on <b id="locBaselineAsOf"></b> — "Wages Approved" is the frozen, management-approved figure per site; "As per Salary" is this month's uploaded register, aggregated by site; "Diff" is As per Salary minus Wages Approved.
+      </div>
+      <div style="font-weight:700; margin:10px 0 6px;">Gross Rates</div>
+      <div class="tablewrap"><table id="tblLocGross"></table></div>
+      <div style="font-weight:700; margin:18px 0 6px;">Net Rates</div>
+      <div class="tablewrap"><table id="tblLocNet"></table></div>
+      <div class="btnbar" style="margin-top:10px;">
+        <button class="ghost" id="btnExportLocation" type="button">Export Baseline &amp; Variance (Excel)</button>
+      </div>
+    </div>
+
     <div id="remarksCard" class="card" style="display:none; margin-top:14px;">
       <div style="font-weight:700; margin-bottom:6px;">Variance file remarks (for reference)</div>
       <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">These are the free-text notes from the variance file, shown as-is — read them yourself to work out each employee's Incentive / OT / Maintenance OT / LWP / roster split, then add the matching line item below. Amounts aren't auto-derived from this text.</div>
@@ -596,6 +611,29 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     (n > 0 ? '+' : '') + Math.round(n).toLocaleString('en-IN');
   const pct = (n) => (n * 100).toFixed(2) + '%';
   const pad2 = (n) => String(Math.abs(Math.round(n))).padStart(2, '0');
+  // Renders any date the register throws at us (a real Date, or a string like "09/08/2021"
+  // or "2021-08-09") as dd-mm-yyyy, consistently, everywhere a DOJ shows up — the Rates
+  // Table, the CSV export, and the "days before joining" reconciliation detail lines.
+  function fmtDate(v) {
+    if (v === null || v === undefined || v === '') return '';
+    let d = v;
+    if (!(d instanceof Date) || isNaN(d)) {
+      if (typeof v === 'string') {
+        const s = v.trim();
+        let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (m) { d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])); }
+        else {
+          m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+          if (m) { d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])); }
+          else { d = new Date(s); }
+        }
+      } else {
+        return String(v);
+      }
+    }
+    if (isNaN(d)) return String(v);
+    return `${pad2(d.getDate())}-${pad2(d.getMonth() + 1)}-${d.getFullYear()}`;
+  }
 
   function toast(msg) {
     const t = $('toast');
@@ -1512,6 +1550,10 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       },
       pf: 1800, ptax: 200, lwf: 0, // Maharashtra: LWF is half-yearly, not a monthly line here by default
       registerDeductsLWF: false,
+      // Maharashtra Labour Welfare Fund Act, 1953: employee share ₹25 (₹6 for Chhattisgarh/
+      // Odisha-style small states — Maharashtra's own current employee share is ₹25),
+      // deducted only in June and December, and only when that month's gross exceeds ₹3,000.
+      lwfRule: { type: 'biannual', employeeAmount: 25, months: [6, 12], minGross: 3000 },
     },
     'BHS Calicut': {
       matchTokens: ['bhs calicut', 'calicut', 'kozhikode'],
@@ -1522,8 +1564,27 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
         'Semi Skilled': { prev: 19760, curr: 20306 },
         'Unskilled': { prev: 17524, curr: 18018 },
       },
-      pf: 1800, ptax: 30, lwf: 50, // Kerala: PTax monthly rate, LWF is monthly
+      pf: 1800, ptax: 30, lwf: 50, // Kerala: PTax is half-yearly (see ptaxRule), LWF is monthly
       registerDeductsLWF: true,
+      // Kerala Shops and Commercial Establishments Workers Welfare Fund Act, 2006: ₹50/month
+      // employee share, every month, all employees (no designation exclusion) — confirmed
+      // against the Kerala Labour Welfare Fund Board's own published rate.
+      lwfRule: { type: 'monthly', employeeAmount: 50 },
+      // Kerala Panchayat Raj Act, 1994 Profession Tax: half-yearly (Apr-Sep / Oct-Mar), with
+      // the full half-year amount deducted once, in September and March respectively — not
+      // spread across all 6 months. Slab is keyed off the employee's monthly gross.
+      ptaxRule: {
+        type: 'biannual-slab', months: [3, 9],
+        slabs: [
+          { upTo: 11999, amount: 0 },
+          { upTo: 17999, amount: 320 },
+          { upTo: 29999, amount: 450 },
+          { upTo: 44999, amount: 600 },
+          { upTo: 99999, amount: 750 },
+          { upTo: 124999, amount: 1000 },
+          { upTo: Infinity, amount: 1250 },
+        ],
+      },
     },
     'BHS ITC JAMMU': {
       matchTokens: ['itc jammu', 'jammu'],
@@ -1537,6 +1598,7 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       // J&K levies no Professional Tax and has no LWF act — both stay 0.
       pf: 1800, ptax: 0, lwf: 0,
       registerDeductsLWF: false,
+      lwfRule: { type: 'monthly', employeeAmount: 0 },
     },
     'BHS O&M Surat': {
       matchTokens: ['o&m surat', 'surat'],
@@ -1552,8 +1614,465 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       // 0 here by default the same way Maharashtra's half-yearly LWF is.
       pf: 1800, ptax: 200, lwf: 0,
       registerDeductsLWF: false,
+      // Gujarat Labour Welfare Fund Act, 1953: ₹6/employee, half-yearly (June & December).
+      lwfRule: { type: 'biannual', employeeAmount: 6, months: [6, 12], minGross: 0 },
+    },
+    'BHS OM Amritsar': {
+      matchTokens: ['om amritsar', 'amritsar', 'bhs-o&m amritsar'],
+      locationLabel: 'Amritsar, Punjab (Area "B")',
+      rates: { // per-category, Central Govt CLC Area B, Oct 2025 -> Apr 2026 notification —
+        // same Area "B" table as BHS ITC Jammu / BHS O&M Surat / BHS Calicut, confirmed
+        // against Aug-2026 Salary Register + variance "Calculation Sheet" (Supervisor
+        // 26,208 / Technician 23,868 / Helper 18,018 match exactly).
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // Punjab: no LWF-equivalent employee deduction seen in the register except a flat
+      // ₹5/month line under "LWF" for every employee — treated here as a plain monthly
+      // rule. Ptax is kept at 0 by default: the Aug-2026 register shows ₹200 Ptax
+      // deducted for exactly one employee (the Supervisor) and ₹0 for the other nine —
+      // not a clean slab, so it's left as a per-employee anomaly to confirm with payroll
+      // rather than baked in as a rule (add it as a manual reconciliation line item).
+      pf: 1800, ptax: 0, lwf: 5,
+      registerDeductsLWF: true,
+      lwfRule: { type: 'monthly', employeeAmount: 5 },
+    },
+    'BHS Darbhanga': {
+      matchTokens: ['darbhanga'],
+      locationLabel: 'Darbhanga, Bihar',
+      rates: {
+        // Highly Skilled/Skilled/Semi Skilled are the same Central CLC Area "B" table used
+        // elsewhere (Skilled confirmed exactly against the Aug-2026 register: Jr Site Incharge
+        // Gautam Kumar Singh's Total Earning(Th) is 23,868). Unskilled is this project's own
+        // rate (16,927, confirmed against the three Helpers' Total Earning(Th)) — it does NOT
+        // match the Area "B" Unskilled figure (18,018) used at Calicut/Jammu/Surat/Amritsar,
+        // so Bihar/Darbhanga is evidently a different wage area for this category. No prior-
+        // period figure was available from a single month's register (no variance file this
+        // time), so Previous is left equal to Current until an earlier month's register or a
+        // variance file supplies the real one.
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 16927, curr: 16927 },
+      },
+      // Bihar has no state Labour Welfare Fund Act, and the Aug-2026 register shows ₹0
+      // Ptax/LWF for every employee regardless of gross (including the Site Incharge at
+      // ₹53,699) — kept flat at 0 rather than guessing a slab; any future month where the
+      // register actually deducts either will be caught and named automatically by the
+      // Statutory deduction variance check.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    'PBB Chennai': {
+      matchTokens: ['pbb chennai', 'chennai'],
+      locationLabel: 'Chennai, Tamil Nadu',
+      rates: {
+        // All 13 employees on the Aug-2026 register are "Operator", classified Skilled by
+        // the existing fallback rule, and share one Total Earning(Th) of 33,444 — this
+        // project's own rate, not the Central CLC Area "B" table used elsewhere. No prior-
+        // period figure was available from a single month's register, so Previous is left
+        // equal to Current until an earlier month or a variance file supplies the real one.
+        // The other three categories have no employees on this register at all, so their
+        // rates are left at 0/unknown rather than guessed — fill them in if this project
+        // ever deploys Highly Skilled/Semi Skilled/Unskilled manpower.
+        'Highly Skilled': { prev: 0, curr: 0 },
+        'Skilled': { prev: 33444, curr: 33444 },
+        'Semi Skilled': { prev: 0, curr: 0 },
+        'Unskilled': { prev: 0, curr: 0 },
+      },
+      // Tamil Nadu has no state LWF Act, and the register shows ₹0 Ptax for every employee
+      // this month — kept flat at 0; a real deduction in a future month gets caught and
+      // named automatically by the Statutory deduction variance check.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    'BHS Rajkot': {
+      matchTokens: ['bhs rajkot', 'rajkot'],
+      locationLabel: 'Rajkot, Gujarat (Area "B")',
+      // Same Central CLC Area "B" table used at Calicut/Jammu/Surat/Amritsar — confirmed
+      // exactly against the Aug-2026 register (Supervisor 26,208 / Technician 23,868 /
+      // Helper 18,018).
+      rates: {
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // Gujarat: ₹200/month Ptax for every employee this month (confirmed across all 14
+      // rows), and LWF follows the same Gujarat Labour Welfare Fund Act rule already
+      // established for BHS O&M Surat — ₹6/employee, half-yearly in June & December only —
+      // which correctly predicts ₹0 for this Aug-2026 register.
+      pf: 1800, ptax: 200, lwf: 0,
+      registerDeductsLWF: false,
+      lwfRule: { type: 'biannual', employeeAmount: 6, months: [6, 12], minGross: 0 },
+    },
+    'BHS Raipur': {
+      matchTokens: ['bhs raipur', 'raipur'],
+      locationLabel: 'Raipur, Chhattisgarh (Area "B")',
+      // Same Central CLC Area "B" table used at Calicut/Jammu/Surat/Amritsar/Rajkot —
+      // confirmed against the two employees on the Aug-2026 register: Site Incharge (with
+      // BHS-R001's own stacked HRA on top) and Sr. Technician-O&M both land on 26,208, the
+      // Highly Skilled rate.
+      rates: {
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // Chhattisgarh: register shows ₹0 Ptax/LWF for both employees this month regardless of
+      // gross — kept flat at 0; a real deduction in a future month gets caught and named
+      // automatically by the Statutory deduction variance check.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    'BHS Bhubaneswar': {
+      // Both spellings appear in the wild: the existing BHS-B001 override record says
+      // "Bhubaneshwar", the register's own Division column says "BHS-Bhubaneswar", and its
+      // Branch column has yet another typo, "BHUBNESHWAR" — all matched here.
+      matchTokens: ['bhubaneswar', 'bhubaneshwar', 'bhubneshwar', 'bhubnestwar'],
+      locationLabel: 'Bhubaneswar, Odisha (Area "B")',
+      // Same Central CLC Area "B" table used at the other BHS projects — confirmed against
+      // the Aug-2026 register: Engineer 26,208 (Highly Skilled), Technician 23,868
+      // (Skilled), Helper 18,018 (Unskilled).
+      rates: {
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // Odisha: register shows ₹0 Ptax/LWF for every employee this month regardless of
+      // gross — kept flat at 0; a real deduction in a future month gets caught and named
+      // automatically by the Statutory deduction variance check.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    'BHS O&M Pune': {
+      matchTokens: ['bhs om pune', 'bhs o&m pune', 'pune', 'bhsitc-p', 'bhsitc-pun', 'bhs-pun'],
+      locationLabel: 'Pune, Maharashtra (Area "A")',
+      // Same Area "A" CLC table already on file for PBB Mihan Nagpur (also Maharashtra) —
+      // confirmed against the Aug-2026 register: clean 26-Sal-Cal-Day employees with no
+      // incentive/roster land exactly on these figures (e.g. Hanamanta/Ganesh Navale,
+      // Technician, Basic+VDA = 26,208; Vikram Gaikwad, Helper, Basic+VDA = 21,502;
+      // Kiran Desai, Supervisor, Basic+VDA = 28,444). Employees paid for one extra roster
+      // day (Pay Days 27 vs Sal Cal Days 26) show exactly one day's proration on top
+      // (827/day Unskilled, 1,008/day Skilled, 1,094/day Highly Skilled) — the tool's
+      // generic roster mechanism explains that, not a separate rate.
+      rates: {
+        'Highly Skilled': { prev: 27690, curr: 28444 },
+        'Skilled': { prev: 25506, curr: 26208 },
+        'Semi Skilled': { prev: 23218, curr: 23868 },
+        'Unskilled': { prev: 20930, curr: 21502 },
+      },
+      // Maharashtra: PF ₹1,800 and Ptax ₹200 flat every month (matches Nagpur); LWF is
+      // half-yearly, not a monthly line — two low-gross partial-month joiners show ₹175
+      // Ptax instead of ₹200 this month, which the Statutory deduction variance check
+      // will name automatically rather than being hardcoded here.
+      pf: 1800, ptax: 200, lwf: 0,
+      registerDeductsLWF: false,
+      lwfRule: { type: 'biannual', employeeAmount: 25, months: [6, 12], minGross: 3000 },
+    },
+    '17 PBB': {
+      // Unlike every other project on file, "17 PBB" is one register spanning four branches
+      // in different minimum-wage zones — Coimbatore, Madurai, Mangalore and Goa — and the
+      // Aug-2026 register shows genuinely different Basic+VDA(Th) standard pay per branch
+      // for the SAME designation (Technician): Coimbatore ₹33,444, Madurai ₹32,229,
+      // Mangalore ₹23,868, Goa ₹26,208. A single project-wide rate table would misprice
+      // three of the four branches, so this uses ratesByBranch (see ratesForEmployee) —
+      // matched against the register's own Branch column — with `rates` below kept only
+      // as the display default (and the fallback for any branch not listed) for Coimbatore,
+      // the largest branch in this file.
+      matchTokens: ['17 pbb', 'pbb 17'],
+      locationLabel: 'Coimbatore / Madurai (Tamil Nadu), Mangalore (Karnataka), Goa — multi-branch',
+      rates: { 'Highly Skilled': { prev: 0, curr: 0 }, 'Skilled': { prev: 33444, curr: 33444 }, 'Semi Skilled': { prev: 0, curr: 0 }, 'Unskilled': { prev: 0, curr: 0 } },
+      ratesByBranch: {
+        // Coimbatore: only Technician (Skilled) seen this month — Highly Skilled/Semi/
+        // Unskilled left at 0 until a register shows an employee in one of those categories.
+        'coimbatore': { 'Highly Skilled': { prev: 0, curr: 0 }, 'Skilled': { prev: 33444, curr: 33444 }, 'Semi Skilled': { prev: 0, curr: 0 }, 'Unskilled': { prev: 0, curr: 0 } },
+        // Madurai: Technician (Skilled) and Junior Technician (Semi Skilled) both confirmed.
+        'madurai': { 'Highly Skilled': { prev: 0, curr: 0 }, 'Skilled': { prev: 32229, curr: 32229 }, 'Semi Skilled': { prev: 31989, curr: 31989 }, 'Unskilled': { prev: 0, curr: 0 } },
+        // Mangalore and Goa both land exactly on the same Central CLC Area "B" table used
+        // across the other BHS/PBB projects (Skilled 23,868 / Highly Skilled 26,208), so
+        // reused here rather than invented.
+        'mangalore': { 'Highly Skilled': { prev: 25506, curr: 26208 }, 'Skilled': { prev: 23218, curr: 23868 }, 'Semi Skilled': { prev: 19760, curr: 20306 }, 'Unskilled': { prev: 17524, curr: 18018 } },
+        'goa': { 'Highly Skilled': { prev: 25506, curr: 26208 }, 'Skilled': { prev: 23218, curr: 23868 }, 'Semi Skilled': { prev: 19760, curr: 20306 }, 'Unskilled': { prev: 17524, curr: 18018 } },
+      },
+      // Every branch shows ₹0 Ptax/LWF this month and PF flat ₹1,800 (prorated for LOP,
+      // e.g. CALCOP003) — a real deduction in a future month gets caught and named
+      // automatically by the Statutory deduction variance check.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    '18 PBB': {
+      // Same "one register, several branches on different rates" shape as 17 PBB — this
+      // one spans Tuticorin and Trichy, each with its own Technician/Helper standard,
+      // confirmed against the Aug-2026 register's own Basic+VDA(Th) figures: Tuticorin
+      // Technician ₹33,444 / Helper ₹31,569; Trichy Technician ₹32,859 / Helper ₹28,119 —
+      // neither matches 17 PBB's Coimbatore/Madurai numbers exactly (Tuticorin's Technician
+      // rate coincides with Coimbatore's, but Helper doesn't), so kept as its own table
+      // rather than assumed identical.
+      matchTokens: ['18 pbb', 'pbb 18', '18 pbb operations'],
+      locationLabel: 'Tuticorin / Trichy, Tamil Nadu — multi-branch',
+      rates: { 'Highly Skilled': { prev: 0, curr: 0 }, 'Skilled': { prev: 33444, curr: 33444 }, 'Semi Skilled': { prev: 0, curr: 0 }, 'Unskilled': { prev: 31569, curr: 31569 } },
+      ratesByBranch: {
+        'tuticorin': { 'Highly Skilled': { prev: 0, curr: 0 }, 'Skilled': { prev: 33444, curr: 33444 }, 'Semi Skilled': { prev: 0, curr: 0 }, 'Unskilled': { prev: 31569, curr: 31569 } },
+        'trichy': { 'Highly Skilled': { prev: 0, curr: 0 }, 'Skilled': { prev: 32859, curr: 32859 }, 'Semi Skilled': { prev: 0, curr: 0 }, 'Unskilled': { prev: 28119, curr: 28119 } },
+      },
+      // Every employee shows ₹0 Ptax/LWF/ESI this month and PF flat ₹1,800 (prorated for
+      // LOP/partial-month joiners, e.g. Adaikkan, Jeevaraj Sebastian, M. Rajamuni) — a real
+      // deduction in a future month gets caught and named automatically by the Statutory
+      // deduction variance check.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    '21 PBB': {
+      // One employee per branch, six branches (Bhopal, Bhubaneswar, Gaya, Indore,
+      // Khajuraho, Raipur) — but unlike 17/18 PBB, every branch here lands on the SAME
+      // Central CLC Area "B" table already used across the BHS projects (Skilled 23,868 /
+      // Highly Skilled 26,208), confirmed against 4 of the 6 clean Aug-2026 rows, so kept
+      // as one flat table rather than per-branch. The other 2 (Gaya's Technician at
+      // 20,306 — the Semi Skilled rate, not Skilled; Khajuraho's Site Incharge at 23,868 —
+      // the Skilled rate, not Highly Skilled) don't match their designation's expected
+      // category, but with only one employee per branch there's no second data point to
+      // tell a real branch-specific rate from a personal one, so left as designation-based
+      // and surfaced by the Unexplained pay difference check instead of guessed at.
+      matchTokens: ['21 pbb', 'pbb 21'],
+      locationLabel: 'Bhopal / Indore / Khajuraho (MP), Gaya (Bihar), Raipur (CG), Bhubaneswar (Odisha) — multi-branch',
+      rates: {
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // PF flat ₹1,800 everywhere. Ptax varies by state and isn't modeled here (Madhya
+      // Pradesh's Bhopal/Indore/Khajuraho show ₹125-₹167 this month, matching MP's own
+      // gross-based PT slab, while Bihar/Chhattisgarh/Odisha show ₹0) — kept at 0 and left
+      // to the Statutory deduction variance check to name each month rather than hardcoding
+      // a state-keyed rule off three single-employee data points.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    '38 PBB': {
+      // Two branches (Jodhpur, Rajasthan; Patna, Bihar), 42 employees — but unlike 17/18
+      // PBB, both branches confirm exactly the same Central CLC Area "B" table (Technician/
+      // Technician-O&M ₹23,868, Helper ₹18,018), so one flat table, no ratesByBranch needed.
+      matchTokens: ['38 pbb', 'pbb 38', '38pbb operations'],
+      locationLabel: 'Jodhpur (Rajasthan) / Patna (Bihar) — multi-branch',
+      rates: {
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      // PF flat ₹1,800 (prorated for LOP throughout); Ptax/LWF both ₹0 for every employee
+      // this month in both Rajasthan and Bihar — a real deduction in a future month gets
+      // caught and named automatically by the Statutory deduction variance check.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
+    },
+    '60 PBB': {
+      // Seven branches on the Aug-2026 register — Chennai, Calicut, Goa, Kolkata, Srinagar,
+      // Udaipur, Vizag — the widest spread yet. Confirmed per branch against clean rows:
+      // Calicut, Goa and Vizag all land on the same Central CLC Area "B" table already used
+      // by default across the BHS/PBB projects, so no override needed for them. Chennai
+      // matches the same Technician/Helper figures already on file for 17/18 PBB
+      // (₹33,444 / ₹31,569). Kolkata is the odd one out — its Supervisor/Technician/Helper
+      // figures (₹28,444 / ₹26,208 / ₹21,502) match the Area "A" table already on file for
+      // PBB Mihan Nagpur / BHS O&M Pune, not the Area "B" default — so it gets its own
+      // ratesByBranch entry. Srinagar's one employee (Javid Ahmad Mir) has a structure that
+      // doesn't fit any zone table at all (no VDA) and is handled as a personal Full Fair
+      // Wage override instead (see EMP_PAY_OVERRIDES['PBBS601']). Udaipur's one Technician
+      // (Ravindra Kumar Sharma) actually lands on the Semi Skilled figure, not Skilled —
+      // left as designation-based and surfaced by the Unexplained pay difference check,
+      // same reasoning as 21 PBB's single-employee-per-branch outliers.
+      matchTokens: ['60 pbb', 'pbb 60', 'aicmc'],
+      locationLabel: 'Chennai / Calicut / Goa / Kolkata / Srinagar / Udaipur / Vizag — multi-branch',
+      rates: {
+        'Highly Skilled': { prev: 25506, curr: 26208 },
+        'Skilled': { prev: 23218, curr: 23868 },
+        'Semi Skilled': { prev: 19760, curr: 20306 },
+        'Unskilled': { prev: 17524, curr: 18018 },
+      },
+      ratesByBranch: {
+        'chennai': { 'Highly Skilled': { prev: 0, curr: 0 }, 'Skilled': { prev: 33444, curr: 33444 }, 'Semi Skilled': { prev: 0, curr: 0 }, 'Unskilled': { prev: 31569, curr: 31569 } },
+        'kolkata': { 'Highly Skilled': { prev: 27690, curr: 28444 }, 'Skilled': { prev: 25506, curr: 26208 }, 'Semi Skilled': { prev: 23218, curr: 23868 }, 'Unskilled': { prev: 20930, curr: 21502 } },
+      },
+      // PF flat ₹1,800 (prorated for LOP/partial months throughout — most rows here are
+      // partial-month joiners). Ptax/LWF vary by state (Kerala's Calicut branch already
+      // shows its real ₹50/month LWF in this file) but aren't modeled per-branch here — a
+      // real deduction gets caught and named automatically by the Statutory deduction
+      // variance check instead of being hardcoded off one branch's data.
+      pf: 1800, ptax: 0, lwf: 0,
+      registerDeductsLWF: false,
     },
   };
+
+  // Location-wise approved Baseline & Variance — the management-approved-per-site format
+  // Three D already uses for its multi-branch PBB projects (17/18/21/38/60 PBB), matching
+  // the workbook structure the user supplied: a "Wages Approved" figure frozen once
+  // management signs off a site's headcount and rate, compared each month against "As per
+  // Salary" (this month's uploaded register, aggregated by site) to get a "Diff". This is
+  // ADDITIONAL to the per-employee Rates Table/Reconciliation above, not a replacement —
+  // it renders as its own "Location-wise Baseline & Variance" section only for projects
+  // listed here. `match` is the lowercase substring matched against each employee's own
+  // Branch column to assign them to a site; `gross`/`net` are {category: {rate, manpower}}
+  // as approved. "Deployment expected as tender" / "Deployment Agreed With AAI" aren't
+  // tracked here (the tool has no source for those contract-level figures) — add them
+  // directly in the exported Excel once supplied.
+  const LOCATION_BASELINES = {
+    '17 PBB': {
+      asOf: '1st Apr-26',
+      sites: [
+        { site: 'Goa', match: 'goa', area: 'B',
+          gross: { 'Highly Skilled': { rate: 26208, manpower: 1 } },
+          net: { 'Highly Skilled': { rate: 24408, manpower: 1 } },
+          remark: 'One H Skilled manpower required for AICMC, Extended till 18-Jul-26 (approved by Sid Sir)' },
+        { site: 'Amritsar', match: 'amritsar', area: 'B',
+          gross: { 'Highly Skilled': { rate: 26208, manpower: 1 } },
+          net: { 'Highly Skilled': { rate: 24203, manpower: 1 } },
+          remark: 'One H Skilled manpower required for AICMC, Extended till 11-Sep-26 (approved by Sid Sir); LWF is 5, P Tax Rs. 200 above 300K under New Regime' },
+        { site: 'Guwahati', match: 'guwahati', area: 'B',
+          gross: { 'Skilled': { rate: 23868, manpower: 10 } },
+          net: { 'Skilled': { rate: 21888, manpower: 10 } },
+          remark: '' },
+        { site: 'Calicut', match: 'calicut', area: 'B',
+          gross: { 'Skilled': { rate: 0, manpower: 0 }, 'Highly Skilled': { rate: 0, manpower: 0 } },
+          net: { 'Skilled': { rate: 0, manpower: 0 }, 'Highly Skilled': { rate: 0, manpower: 0 } },
+          remark: 'Operation closed on 31-Dec-25, Maintenance Extended till 31-Jul-26, No Manpower Deployed; P Tax Is 180 (upto 25K), above 25K P Tax Rs. 208' },
+        { site: 'Mangalore', match: 'mangalore', area: 'B',
+          gross: { 'Skilled': { rate: 23868, manpower: 7 } },
+          net: { 'Skilled': { rate: 22068, manpower: 7 } },
+          remark: '' },
+        { site: 'Pune', match: 'pune', area: 'A',
+          gross: { 'Skilled': { rate: 26208, manpower: 14 } },
+          net: { 'Skilled': { rate: 24208, manpower: 14 } },
+          remark: 'P Tax Is 200' },
+        { site: 'Madurai (TN)', match: 'madurai', area: 'C Zone',
+          gross: { 'Skilled': { rate: 32229, manpower: 3 }, 'Semi Skilled': { rate: 31989, manpower: 2 } },
+          net: { 'Skilled': { rate: 30429, manpower: 3 }, 'Semi Skilled': { rate: 30189, manpower: 2 } },
+          remark: '' },
+        { site: 'Coimbatore (TN)', match: 'coimbatore', area: 'A Zone',
+          gross: { 'Skilled': { rate: 33444, manpower: 10 } },
+          net: { 'Skilled': { rate: 31644, manpower: 10 } },
+          remark: '' },
+      ],
+    },
+    '21 PBB': {
+      asOf: '1st Apr-26',
+      sites: [
+        { site: 'Indore', match: 'indore', area: 'B',
+          gross: { 'Highly Skilled': { rate: 26208, manpower: 1 } },
+          net: { 'Highly Skilled': { rate: 24241, manpower: 1 } },
+          remark: 'Ptax = 167' },
+        { site: 'Bhopal', match: 'bhopal', area: 'B',
+          gross: { 'Skilled': { rate: 23868, manpower: 1 } },
+          net: { 'Skilled': { rate: 21943, manpower: 1 } },
+          remark: 'Ptax = 125' },
+        { site: 'Raipur', match: 'raipur', area: 'B',
+          gross: { 'Skilled': { rate: 0, manpower: 0 } },
+          net: { 'Skilled': { rate: 0, manpower: 0 } },
+          remark: '' },
+        { site: 'Khajuraho', match: 'khajuraho', area: 'C',
+          gross: { 'Skilled': { rate: 19760, manpower: 1 } },
+          net: { 'Skilled': { rate: 18381, manpower: 1 } },
+          remark: 'Ptax = 125' },
+        { site: 'Gaya', match: 'gaya', area: 'C',
+          gross: { 'Skilled': { rate: 0, manpower: 0 } },
+          net: { 'Skilled': { rate: 0, manpower: 0 } },
+          remark: '' },
+        { site: 'Tirupati', match: 'tirupati', area: 'C',
+          gross: { 'Skilled': { rate: 20306, manpower: 1 } },
+          net: { 'Skilled': { rate: 18203, manpower: 1 } },
+          remark: 'Ptax = 150' },
+        { site: 'Bhubaneshwar', match: 'bhub', area: 'B',
+          gross: { 'Highly Skilled': { rate: 25506, manpower: 1 } },
+          net: { 'Highly Skilled': { rate: 23706, manpower: 1 } },
+          remark: 'Ptax = 200' },
+      ],
+    },
+    '38 PBB': {
+      asOf: '1-Apr-26',
+      sites: [
+        { site: 'Patna', match: 'patna', area: 'B',
+          gross: { 'Unskilled': { rate: 18018, manpower: 17 } },
+          net: { 'Unskilled': { rate: 16082, manpower: 17 } },
+          remark: '' },
+        { site: 'Jodhpur', match: 'jodhpur', area: 'B',
+          gross: { 'Unskilled': { rate: 18018, manpower: 4 } },
+          net: { 'Unskilled': { rate: 16082, manpower: 4 } },
+          remark: '0.67 Skilled and Unskilled manpower approved by Sid Sir' },
+      ],
+    },
+    '60 PBB': {
+      asOf: '1st Apr-26',
+      sites: [
+        { site: 'Goa', match: 'goa', area: 'B',
+          gross: { 'Highly Skilled': { rate: 26208, manpower: 1 } },
+          net: { 'Highly Skilled': { rate: 24408, manpower: 1 } },
+          remark: '' },
+        { site: 'Vizag', match: 'vizag', area: 'B',
+          gross: { 'Skilled': { rate: 23868, manpower: 1 } },
+          net: { 'Skilled': { rate: 21868, manpower: 1 } },
+          remark: 'P Tax = 200' },
+        { site: 'Udaipur', match: 'udaipur', area: 'C',
+          gross: { 'Semi Skilled': { rate: 20306, manpower: 1 } },
+          net: { 'Semi Skilled': { rate: 18353, manpower: 1 } },
+          remark: '' },
+        { site: 'Srinagar (Fair Wages)', match: 'srinagar', area: 'B',
+          gross: { 'Highly Skilled': { rate: 31800, manpower: 1 } },
+          net: { 'Highly Skilled': { rate: 30000, manpower: 1 } },
+          remark: 'Personal Full Fair Wage override (no VDA component) — not a standard zone rate' },
+        { site: 'Calicut (H Skilled)', match: 'calicut', area: 'B',
+          gross: { 'Highly Skilled': { rate: 26208, manpower: 1 } },
+          net: { 'Highly Skilled': { rate: 24358, manpower: 1 } },
+          remark: 'LWF = 50' },
+      ],
+    },
+  };
+
+  function locationCatTotal(catMap) {
+    return Object.values(catMap || {}).reduce((s, c) => s + (c.rate || 0) * (c.manpower || 0), 0);
+  }
+
+  // Builds the site-by-site Baseline vs Variance rows for the currently selected project,
+  // or null if this project has no LOCATION_BASELINES entry. Actual ("As per Salary") is
+  // computed by matching each employee's Branch column against each site's `match` token —
+  // an employee whose branch matches no site simply isn't counted anywhere in this view
+  // (they still appear in the per-employee Rates Table/Reconciliation above).
+  function computeLocationVariance(r) {
+    const base = LOCATION_BASELINES[r.cfg.project];
+    if (!base) return null;
+    const rows = base.sites.map(site => {
+      const token = (site.match || site.site).toLowerCase();
+      const emps = r.employees.filter(e => String(e.branch || '').toLowerCase().includes(token));
+      const wagesApprovedGross = locationCatTotal(site.gross);
+      const wagesApprovedNet = locationCatTotal(site.net);
+      const actualGross = emps.length ? emps.reduce((s, e) => s + e.gross, 0) : null;
+      const actualNet = emps.length ? emps.reduce((s, e) => s + e.net, 0) : null;
+      return {
+        site: site.site, area: site.area, gross: site.gross, net: site.net,
+        wagesApprovedGross, wagesApprovedNet,
+        actualGross, actualNet,
+        diffGross: actualGross === null ? null : actualGross - wagesApprovedGross,
+        diffNet: actualNet === null ? null : actualNet - wagesApprovedNet,
+        empCount: emps.length,
+        remark: site.remark || '',
+      };
+    });
+    const totalWagesApprovedGross = rows.reduce((s, x) => s + x.wagesApprovedGross, 0);
+    const totalWagesApprovedNet = rows.reduce((s, x) => s + x.wagesApprovedNet, 0);
+    const withActual = rows.filter(x => x.actualGross !== null);
+    const totalActualGross = withActual.length ? withActual.reduce((s, x) => s + x.actualGross, 0) : null;
+    const totalActualNet = withActual.length ? withActual.reduce((s, x) => s + x.actualNet, 0) : null;
+    return {
+      asOf: base.asOf, rows,
+      totalWagesApprovedGross, totalWagesApprovedNet,
+      totalActualGross, totalActualNet,
+      totalDiffGross: totalActualGross === null ? null : totalActualGross - totalWagesApprovedGross,
+      totalDiffNet: totalActualNet === null ? null : totalActualNet - totalWagesApprovedNet,
+    };
+  }
 
   // Fallback contracted-manpower data (mirrors Master Manpower.xlsx as of the last time
   // this tool was rebuilt) — used only until the user drops a fresher copy of that file,
@@ -1567,6 +2086,30 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 1, 'Highly Skilled': 0, 'Fair Wages': 0 } },
     { project: 'BHS O&M Surat', location: 'Surat', start: '', end: '', revenue: '',
       contract: { 'Unskilled': 0, 'Semi Skilled': 10, 'Skilled': 6, 'Highly Skilled': 3, 'Fair Wages': 2 } },
+    { project: 'BHS OM Amritsar', location: 'Amritsar', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 4, 'Semi Skilled': 0, 'Skilled': 5, 'Highly Skilled': 1, 'Fair Wages': 0 } },
+    { project: 'BHS Darbhanga', location: 'Darbhanga', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 3, 'Semi Skilled': 0, 'Skilled': 1, 'Highly Skilled': 0, 'Fair Wages': 1 } },
+    { project: 'PBB Chennai', location: 'Chennai', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 13, 'Highly Skilled': 0, 'Fair Wages': 0 } },
+    { project: 'BHS Rajkot', location: 'Rajkot', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 7, 'Semi Skilled': 0, 'Skilled': 4, 'Highly Skilled': 3, 'Fair Wages': 0 } },
+    { project: 'BHS Raipur', location: 'Raipur', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 0, 'Highly Skilled': 2, 'Fair Wages': 0 } },
+    { project: 'BHS Bhubaneswar', location: 'Bhubaneswar', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 2, 'Semi Skilled': 0, 'Skilled': 3, 'Highly Skilled': 1, 'Fair Wages': 0 } },
+    { project: 'BHS O&M Pune', location: 'Pune', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 18, 'Semi Skilled': 0, 'Skilled': 7, 'Highly Skilled': 4, 'Fair Wages': 0 } },
+    { project: '17 PBB', location: 'Coimbatore / Madurai / Mangalore / Goa', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 2, 'Skilled': 19, 'Highly Skilled': 1, 'Fair Wages': 0 } },
+    { project: '18 PBB', location: 'Tuticorin / Trichy', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 4, 'Semi Skilled': 0, 'Skilled': 5, 'Highly Skilled': 0, 'Fair Wages': 0 } },
+    { project: '21 PBB', location: 'Bhopal / Bhubaneswar / Gaya / Indore / Khajuraho / Raipur', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 0, 'Semi Skilled': 0, 'Skilled': 4, 'Highly Skilled': 2, 'Fair Wages': 0 } },
+    { project: '38 PBB', location: 'Jodhpur / Patna', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 21, 'Semi Skilled': 0, 'Skilled': 21, 'Highly Skilled': 0, 'Fair Wages': 0 } },
+    { project: '60 PBB', location: 'Chennai / Calicut / Goa / Kolkata / Srinagar / Udaipur / Vizag', start: '', end: '', revenue: '',
+      contract: { 'Unskilled': 4, 'Semi Skilled': 0, 'Skilled': 7, 'Highly Skilled': 5, 'Fair Wages': 0 } },
   ];
 
   const MASTER_STORAGE_KEY = 'baseline_master_manpower_rows_v1';
@@ -1600,10 +2143,13 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
           'Fair Wages': row.contract['Fair Wages'] || 0,
         },
         rates: rd.rates || {},
+        ratesByBranch: rd.ratesByBranch || null,
         pf: rd.pf ?? 1800,
         ptax: rd.ptax ?? 0,
         lwf: rd.lwf ?? 0,
         registerDeductsLWF: rd.registerDeductsLWF ?? false,
+        lwfRule: rd.lwfRule || null,
+        ptaxRule: rd.ptaxRule || null,
         projectStart: row.start || '',
         projectEnd: row.end || '',
         revenue: row.revenue || '',
@@ -1913,6 +2459,24 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       otDays: colIndexContains(header, 'NO OF H/D'),
       lwpDays: colIndexContains(header, 'LOP AVAILED'),
       perfIncen: colIndexContainsNot(header, 'PERF INCEN', '(th)'),
+      // Actual statutory deductions as the register itself applied them this month — used
+      // to auto-explain a Net residual by comparing them, employee by employee, against
+      // what the tool's own PF/Ptax/LWF/ESI rules compute as the "standard" (see the
+      // Statutory deduction variance reconciliation line in compute()).
+      // Exact-match only (not colIndexContains) for these: each label is a short substring
+      // that also turns up inside unrelated headers — 'PF' inside ' PF EARNING', 'PT' inside
+      // ' PERF INCEN'/'Department', 'ESI' inside 'Designation', 'LWF' being the only truly
+      // unique one but kept exact for consistency/future-proofing.
+      // Three D's export carries BOTH ' PF' and ' PF.' (with a trailing dot), and which one
+      // actually holds the real per-employee deduction varies by project/export — BHS OM
+      // Amritsar and BHS Darbhanga had it in ' PF', but PBB Chennai has ' PF' at a flat 0 for
+      // everyone and the real figure in ' PF.'. Both are captured here; the one that's
+      // actually populated (checked once for the whole file, below) is used as actualPF.
+      actualPF: header.findIndex(c => typeof c === 'string' && c.trim() === 'PF'),
+      actualPFAlt: header.findIndex(c => typeof c === 'string' && c.trim() === 'PF.'),
+      actualPtax: header.findIndex(c => typeof c === 'string' && c.trim() === 'PT'),
+      actualEsi: header.findIndex(c => typeof c === 'string' && c.trim() === 'ESI'),
+      actualLwf: header.findIndex(c => typeof c === 'string' && c.trim() === 'LWF'),
     };
     const out = [];
     for (let i = hIdx + 1; i < rows.length; i++) {
@@ -1935,8 +2499,31 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
         otDays: idx.otDays >= 0 ? (Number(r[idx.otDays]) || 0) : 0,
         lwpDays: idx.lwpDays >= 0 ? (Number(r[idx.lwpDays]) || 0) : 0,
         perfIncen: idx.perfIncen >= 0 ? (Number(r[idx.perfIncen]) || 0) : 0,
+        actualPF: idx.actualPF >= 0 ? (Number(r[idx.actualPF]) || 0) : null,
+        actualPFAlt: idx.actualPFAlt >= 0 ? (Number(r[idx.actualPFAlt]) || 0) : null,
+        actualPtax: idx.actualPtax >= 0 ? (Number(r[idx.actualPtax]) || 0) : null,
+        actualEsi: idx.actualEsi >= 0 ? (Number(r[idx.actualEsi]) || 0) : null,
+        actualLwf: idx.actualLwf >= 0 ? (Number(r[idx.actualLwf]) || 0) : null,
       });
     }
+    // Pick whichever of ' PF' / ' PF.' actually carries the real deduction — per employee,
+    // not just once for the whole file. Most registers use the same column for everyone
+    // (in which case this is equivalent to a file-wide pick), but a multi-branch register
+    // like "17 PBB" can genuinely mix conventions row-by-row (e.g. its Goa branch export
+    // carries the real PF in ' PF.' while every other branch in the same file carries it
+    // in plain ' PF') — confirmed against Iarappa S Yavagal (GOA-0004), whose plain ' PF'
+    // is 0 but ' PF.' is 1,800, matching his Net Amount exactly. Whichever column is
+    // nonzero for that row wins; if both are nonzero (shouldn't normally happen) the
+    // file-wide-higher-summing one wins, same as before.
+    const sumPF = out.reduce((s, e) => s + (e.actualPF || 0), 0);
+    const sumPFAlt = out.reduce((s, e) => s + (e.actualPFAlt || 0), 0);
+    const fileDefaultIsAlt = sumPFAlt > sumPF;
+    out.forEach(e => {
+      const pf = e.actualPF || 0, pfAlt = e.actualPFAlt || 0;
+      if (pf && pfAlt) { e.actualPF = fileDefaultIsAlt ? pfAlt : pf; }
+      else if (pfAlt && !pf) { e.actualPF = pfAlt; }
+      // else: plain PF already correct (nonzero, or both zero — leave as 0).
+    });
     return out;
   }
 
@@ -2181,6 +2768,13 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     'tech mechanical': 'Skilled',
     'junior technician': 'Semi Skilled',
     'jr. technician-o&m': 'Semi Skilled',
+    // A "Jr Site Incharge" is a distinct, lower grade from plain "Site Incharge" — pays the
+    // ordinary Skilled category rate (confirmed against BHS Darbhanga's Aug-2026 register:
+    // Gautam Kumar Singh's Total Earning(Th) is 23,868, the Skilled rate, not 26,208 Highly
+    // Skilled) — and does NOT get the Site-Incharge-only fixed-26-divisor / ₹4,000-default-
+    // incentive treatment (see the isSiteIncharge check below, which excludes "Jr").
+    'jr site incharge': 'Skilled',
+    'jr. site incharge': 'Skilled',
     'driver/attendant': 'Semi Skilled',
     'attendant/helper': 'Semi Skilled',
     'attendant': 'Semi Skilled',
@@ -2194,7 +2788,12 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
   // { 'EMP-CODE': 'Designation to classify against' } when a specific case needs it.
   const EMP_OVERRIDES = {};
 
-  function classifySkill(designation, empId, projectName) {
+  // Designation-based classification only — no manpower-category override applied. This is
+  // what actually determines which rate-table row an employee's statutory standard pay is
+  // computed from, since "Fair Wages" (and any other override category) isn't itself a rate
+  // in cfg.rates — it's a headcount label layered on top of an otherwise perfectly normal
+  // category-rate calculation (see classifySkill below and EMP_CATEGORY_OVERRIDES).
+  function classifySkillBase(designation, empId, projectName) {
     const effectiveDesignation = EMP_OVERRIDES[empId] || designation;
     const d = (effectiveDesignation || '').trim().toLowerCase();
 
@@ -2213,6 +2812,16 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     if ((projectName || '').toUpperCase().includes('ASFT') && /attendant|helper/.test(d)) return 'Unskilled';
 
     return 'Semi Skilled'; // default
+  }
+
+  // Manpower-headcount category — same as classifySkillBase, except an employee in
+  // EMP_CATEGORY_OVERRIDES is counted under that contractual category instead (e.g. Rijith T
+  // counts as "Fair Wages" manpower even though his actual pay is computed off the ordinary
+  // Highly Skilled rate — see standardGrossFor, which deliberately uses classifySkillBase's
+  // category, not this one, for the rate lookup).
+  function classifySkill(designation, empId, projectName) {
+    if (EMP_CATEGORY_OVERRIDES[empId]) return EMP_CATEGORY_OVERRIDES[empId];
+    return classifySkillBase(designation, empId, projectName);
   }
 
   // ---------- per-employee pay overrides ----------
@@ -2235,17 +2844,45 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     'PBBAD22': { project: 'PBB Ahmedabad', components: [
       { field: 'Basic', value: 21200 }, { field: 'VDA', value: 0 }, { field: 'HRA', value: 10600 },
     ] },
+    // Javid Ahmad Mir, Site Incharge, Srinagar (part of the multi-branch "60 PBB" register)
+    // — no VDA at all and a flat Basic+HRA structure unlike any other branch on this
+    // project, so kept as a personal Full Fair Wage override (confirmed against the
+    // Aug-2026 register's own Basic(Th)/HRA(Th): 26,000 + 4,800 = 30,800) rather than
+    // invented as a one-employee "Srinagar zone table".
+    'PBBS601': { project: '60 PBB (Srinagar)', components: [
+      { field: 'Basic', value: 26000 }, { field: 'VDA', value: 0 }, { field: 'HRA', value: 4800 },
+    ] },
     'BHS-S30': { project: 'BHS Surat', components: [
       { field: 'Basic', schedule: [{ from: null, value: 26208 }, { from: '2026-05', value: 16562 }] },
       { field: 'VDA', schedule: [{ from: null, value: 0 }, { from: '2026-05', value: 9646 }] },
       { field: 'HRA', schedule: [{ from: null, value: 11185 }, { from: '2026-05', value: 10813 }] },
     ] },
-    'PBBS601': { project: '60 PBB (Srinagar)', components: [
-      { field: 'Basic', value: 26000 }, { field: 'VDA', value: 0 }, { field: 'HRA', value: 4800 },
+    // Same Emp ID, transferred: HO-0254 was at BHS ITC Vijayawada, and shows up from the
+    // Aug-2026 BHS Darbhanga register onward with a different fixed pay structure (Basic
+    // 24,075 + HRA 12,038 + Telephone 700 + Project Allowance 9,386 = Total Earning(Th)
+    // 46,199, confirmed against the register) — kept as a schedule so older Vijayawada
+    // months still reconcile against the old figures.
+    'HO-0254': { project: 'BHS ITC Vijayawada -> BHS Darbhanga (transferred Aug-2026)', components: [
+      { field: 'Basic', schedule: [{ from: null, value: 20500 }, { from: '2026-08', value: 24075 }] },
+      { field: 'VDA', value: 0 },
+      { field: 'HRA', schedule: [{ from: null, value: 10250 }, { from: '2026-08', value: 12038 }] },
+      { field: 'Telephone', schedule: [{ from: null, value: 0 }, { from: '2026-08', value: 700 }] },
+      { field: 'Project Allowance', schedule: [{ from: null, value: 0 }, { from: '2026-08', value: 9386 }] },
+      { field: 'Perf Incentive', value: 7500 },
     ] },
-    'HO-0254': { project: 'BHS ITC Vijayawada', components: [
-      { field: 'Basic', value: 20500 }, { field: 'VDA', value: 0 }, { field: 'HRA', value: 10250 }, { field: 'Perf Incentive', value: 7500 },
-    ] },
+  };
+
+  // Category overrides: an employee counted under a different manpower category than their
+  // designation would otherwise map to (e.g. contractually "Fair Wages" headcount), separate
+  // from how their actual pay is computed — see EMP_ALLOWANCE_OVERRIDES below for Rijith T's
+  // pay, which is the ordinary Highly Skilled rate plus a small stacked HRA, not a full
+  // custom pay structure.
+  const EMP_CATEGORY_OVERRIDES = {
+    'BHS-CAL05': 'Fair Wages',
+    // Neeraj — a Full Fair Wage override employee (see EMP_PAY_OVERRIDES) at both BHS ITC
+    // Vijayawada and (from Aug-2026) BHS Darbhanga — counts as "Fair Wages" manpower at
+    // either project, not "Highly Skilled" from his "Site Incharge" designation.
+    'HO-0254': 'Fair Wages',
   };
 
   // Stacked allowances: normal MW-category Gross Pay stays as computed, with these
@@ -2258,8 +2895,12 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       { label: 'Project Allowance', schedule: [{ from: null, value: 6413 }, { from: '2026-05', value: 5153 }] },
     ] },
     'BHS-HR22': { project: 'BHS Rajkot', allowances: [{ label: 'Perf Incentive', value: 2000 }] },
+    // Rijith T's own custom HRA stacked on top of the normal Highly Skilled category rate —
+    // matches the register's own "Total Earning(Th)" for him (26,208 + 298 = 26,506) exactly.
+    // His Incentive is NOT stacked here since it varies month to month and is already picked
+    // up automatically from the register's own PERF INCEN column, same as everyone else.
+    'BHS-CAL05': { project: 'BHS Calicut', allowances: [{ label: 'HRA', value: 298 }] },
     'BHS-B001': { project: 'BHS Bhubaneshwar', allowances: [{ label: 'Perf Incentive', value: 4000 }] },
-    'BHS-CAL05': { project: 'BHS Calicut', allowances: [{ label: 'HRA', value: 298 }, { label: 'Perf Incentive', value: 5000 }] },
     'BHS-R001': { project: 'BHS Raipur', allowances: [
       { label: 'HRA', schedule: [{ from: null, value: 592 }, { from: '2026-05', value: 2592 }] },
     ] },
@@ -2324,6 +2965,21 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     return best || 0;
   }
 
+  // A handful of projects (e.g. "17 PBB", which spans Coimbatore/Madurai/Mangalore/Goa
+  // branches under one register) pay genuinely different minimum-wage rates per branch,
+  // not just per skill category. cfg.ratesByBranch, when present, is checked first — a
+  // map of lowercase branch-name substring -> the same {category: {prev,curr}} shape as
+  // cfg.rates — falling back to cfg.rates for any branch it doesn't match.
+  function ratesForEmployee(cfg, e) {
+    if (cfg.ratesByBranch) {
+      const branch = String(e.branch || '').trim().toLowerCase();
+      for (const key in cfg.ratesByBranch) {
+        if (branch.includes(key)) return cfg.ratesByBranch[key];
+      }
+    }
+    return cfg.rates;
+  }
+
   // Returns { gross, note } — the statutory-standard Gross Pay to use in the Rates
   // Table for this employee: a Full Fair Wage override if one exists for their Emp ID,
   // else the normal category rate plus any stacked allowance overrides for their Emp ID.
@@ -2331,16 +2987,34 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     const empId = String(e.empId).trim();
     const full = EMP_PAY_OVERRIDES[empId];
     if (full) {
-      const gross = full.components.reduce((s, c) => s + resolveOverrideField(c, monthKey), 0);
+      // Any component labeled as an incentive is deliberately excluded from the "standard"
+      // fixed-pay sum — like everyone else's Incentive, it's a separate, month-to-month
+      // reconciliation line (pulled from the register's own PERF INCEN / this component's
+      // value below), not part of the base standard. Confirmed against HO-0254 (Neeraj):
+      // Basic 24,075 + HRA 12,038 + Telephone 700 + Project Allowance 9,386 = 46,199, which
+      // matches the register's own "Total Earning(Th)" exactly — the ₹7,500 Perf Incentive
+      // is on top of that, not baked in.
+      const gross = full.components
+        .filter(c => !/incent/i.test(c.field))
+        .reduce((s, c) => s + resolveOverrideField(c, monthKey), 0);
       return { gross, note: `Full Fair Wage override (${full.project})` };
     }
-    const rate = cfg.rates[e.category] || { prev: 0, curr: 0 };
+    const rate = ratesForEmployee(cfg, e)[e.payCategory || e.category] || { prev: 0, curr: 0 };
     let gross = rate.curr;
     const stack = EMP_ALLOWANCE_OVERRIDES[empId];
     let note = null;
     if (stack) {
       let added = 0;
       stack.allowances.forEach(a => {
+        // Same exclusion as the Full Fair Wage override above: a stacked "Perf Incentive"
+        // allowance is NOT folded into the standard gross here — it's a separate,
+        // reconcilable Incentive line (see the incentive fallback below), so counting it
+        // both here AND there would double it whenever the register also reports a real
+        // PERF INCEN for this employee (confirmed against BHS Rajkot's BHS-HR22, whose
+        // contracted ₹2,000 Perf Incentive allowance was being added on top of the
+        // register's own ₹2,000 PERF INCEN, inflating "standard" by ₹2,000 and producing a
+        // false ₹2,000 "below what's explained" residual).
+        if (/incent/i.test(a.label)) return;
         if (a.oneTimeMonth) { if (a.oneTimeMonth === monthKey) added += a.value || 0; return; }
         added += resolveOverrideField(a, monthKey);
       });
@@ -2348,6 +3022,50 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       note = `Includes stacked allowances (${stack.allowances.map(a => a.label).join(', ')})`;
     }
     return { gross, note };
+  }
+
+  // Labour Welfare Fund is not a flat monthly figure everywhere — several states run it
+  // half-yearly (only deducted in specific months, sometimes only above a gross threshold).
+  // Returns the employee-side LWF deduction for this employee in this specific month.
+  function computeLWF(e, cfg, monthKey) {
+    const rule = cfg.lwfRule;
+    if (!rule) return cfg.lwf; // no known rule for this project — fall back to the flat field
+    if (rule.type === 'monthly') return rule.employeeAmount;
+    if (rule.type === 'biannual') {
+      const m = monthKey ? Number(String(monthKey).split('-')[1]) : null; // monthKey like "2026-05"
+      if (!m || !rule.months.includes(m)) return 0;
+      if ((e.gross || 0) < (rule.minGross || 0)) return 0;
+      return rule.employeeAmount;
+    }
+    return cfg.lwf;
+  }
+
+  // Kerala-style Profession Tax: a half-yearly slab (keyed off monthly gross) deducted in
+  // full in one specific month per half-year, not spread across all 6 months. Returns the
+  // deduction for this employee in this specific month.
+  function computePT(e, cfg, monthKey, gross) {
+    const rule = cfg.ptaxRule;
+    if (!rule) return cfg.ptax; // no known slab rule for this project — flat monthly field
+    if (rule.type === 'biannual-slab') {
+      const m = monthKey ? Number(String(monthKey).split('-')[1]) : null;
+      if (!m || !rule.months.includes(m)) return 0;
+      const slab = rule.slabs.find(s => (gross || 0) <= s.upTo);
+      return slab ? slab.amount : 0;
+    }
+    return cfg.ptax;
+  }
+
+  // ESI (Employees' State Insurance Act, 1948): employee share is 0.75% of gross wages,
+  // applicable only where the wage-ceiling ("Total Earning(Th)", i.e. the statutory-standard
+  // gross before OT/incentive) is at or below ₹21,000/month — above that an employee is out
+  // of ESI coverage entirely. Rounded up to the next rupee, matching how it's actually shown
+  // on the register (e.g. ₹18,018 × 0.75% = ₹135.135 → ₹136 on real BHS OM Amritsar payslips).
+  // Applies uniformly across projects — it's a central Act, not a state-specific rule — so
+  // there's no per-project ptaxRule/lwfRule-style override needed for it.
+  function computeESI(e, cfg, gross) {
+    const wageCeilingBasis = e.stdGrossTh || gross || 0;
+    if (wageCeilingBasis <= 0 || wageCeilingBasis > 21000) return 0;
+    return Math.ceil(gross * 0.0075);
   }
 
   // ---------- compute ----------
@@ -2369,9 +3087,25 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       ptax: Number($('cfgPtax').value) || 0,
       lwf: Number($('cfgLWF').value) || 0,
       registerDeductsLWF: $('cfgRegisterDeductsLWF').value === 'yes',
+      // The actual month-and-gross-aware LWF rule for whichever project is selected (see
+      // RATE_DEFAULTS) — e.g. Kerala's flat ₹50/month vs Maharashtra/Gujarat's ₹25/₹6
+      // half-yearly-in-June-and-December-only. Falls back to the flat "LWF per employee"
+      // field above (applied every month) for a project with no known rule.
+      lwfRule: (PROJECTS[$('cfgProject').value] && PROJECTS[$('cfgProject').value].lwfRule) || null,
+      // Same idea as lwfRule, for projects whose Profession Tax is a half-yearly slab
+      // deducted in specific months (e.g. Kerala) rather than a flat monthly figure.
+      ptaxRule: (PROJECTS[$('cfgProject').value] && PROJECTS[$('cfgProject').value].ptaxRule) || null,
+      // Same idea again, for the handful of projects (e.g. "17 PBB") whose different
+      // branches sit in different minimum-wage zones and so need a different standard
+      // rate per branch, not just per skill category — see ratesForEmployee().
+      ratesByBranch: (PROJECTS[$('cfgProject').value] && PROJECTS[$('cfgProject').value].ratesByBranch) || null,
     };
 
-    const employees = state.registerRows.map(r => ({ ...r, category: classifySkill(r.designation, r.empId, cfg.project) }));
+    const employees = state.registerRows.map(r => ({
+      ...r,
+      category: classifySkill(r.designation, r.empId, cfg.project),
+      payCategory: classifySkillBase(r.designation, r.empId, cfg.project),
+    }));
     const varianceByEmp = {};
     (state.varianceRows || []).forEach(v => { varianceByEmp[String(v.empId).trim()] = v; });
 
@@ -2398,13 +3132,18 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     const ratesRows = employees.map(e => {
       const monthKey = monthKeyFromValue(e.month);
       const { gross, note } = standardGrossFor(e, cfg, monthKey);
-      const net = gross - (cfg.pf + cfg.ptax + cfg.lwf);
-      return { ...e, stdGross: gross, pf: cfg.pf, ptax: cfg.ptax, lwf: cfg.lwf, stdNet: net, overrideNote: note };
+      const lwf = computeLWF(e, cfg, monthKey);
+      const ptax = computePT(e, cfg, monthKey, gross);
+      const esi = computeESI(e, cfg, gross);
+      const net = gross - (cfg.pf + ptax + lwf + esi);
+      return { ...e, stdGross: gross, pf: cfg.pf, ptax, lwf, esi, stdNet: net, overrideNote: note };
     });
     const ratesTotal = ratesRows.reduce((acc, r) => {
-      acc.gross += r.stdGross; acc.pf += r.pf; acc.ptax += r.ptax; acc.lwf += r.lwf; acc.net += r.stdNet;
+      acc.gross += r.stdGross; acc.pf += r.pf; acc.ptax += r.ptax; acc.lwf += r.lwf; acc.esi += r.esi; acc.net += r.stdNet;
       return acc;
-    }, { gross: 0, pf: 0, ptax: 0, lwf: 0, net: 0 });
+    }, { gross: 0, pf: 0, ptax: 0, lwf: 0, esi: 0, net: 0 });
+    const ratesRowByEmp = {};
+    ratesRows.forEach(r => { ratesRowByEmp[String(r.empId).trim()] = r; });
 
     // Register totals
     const registerGross = employees.reduce((s, e) => s + e.gross, 0);
@@ -2424,9 +3163,46 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     // Maintenance OT Payable" at a different rate) needs a manual line item — see the "Add a
     // reconciliation line item" control below.
     const reconItems = [];
-    let incentiveTotal = 0, otTotal = 0, otDaysTotal = 0, maintenanceOTTotal = 0, lwpTotal = 0, lwpDaysTotal = 0, rosterTotal = 0, rosterDaysTotal = 0, personalPremiumTotal = 0;
-    const incentiveDetails = [], otDetails = [], maintenanceOTNames = [], lwpDetails = [], rosterDetails = [], personalPremiumDetails = [];
+    let incentiveTotal = 0, otTotal = 0, otDaysTotal = 0, maintenanceOTTotal = 0, lwpTotal = 0, lwpDaysTotal = 0, rosterTotal = 0, rosterDaysTotal = 0, personalPremiumTotal = 0, joinerTotal = 0, joinerDaysTotal = 0;
+    const incentiveDetails = [], otDetails = [], maintenanceOTNames = [], lwpDetails = [], rosterDetails = [], personalPremiumDetails = [], joinerDetails = [];
     employees.forEach(e => {
+      // A Full Fair Wage override employee's "standard" is their fixed Basic/VDA/HRA/other-
+      // allowance package ONLY (standardGrossFor excludes any incentive-labeled component
+      // from that sum — see there) — incentive and extra roster days are genuinely separate,
+      // reconcilable pieces on top of it, same as for every other employee, and get counted
+      // into the Incentive/Roster totals below rather than just noted for reference.
+      const fairWageOverride = EMP_PAY_OVERRIDES[String(e.empId).trim()];
+      if (fairWageOverride) {
+        const fwStdGross = standardGrossFor(e, cfg, monthKeyFromValue(e.month)).gross;
+        const fwIncentiveComponent = (fairWageOverride.components || []).find(c => /incent/i.test(c.field));
+        // Prefer the register's own actual PERF INCEN for this month when present (it's the
+        // real paid figure and can vary month to month); fall back to the contracted fixed
+        // incentive component only when the register doesn't carry one for this employee.
+        const fwIncentive = e.perfIncen || (fwIncentiveComponent ? resolveOverrideField(fwIncentiveComponent, monthKeyFromValue(e.month)) : 0);
+        if (fwIncentive) {
+          incentiveTotal += fwIncentive;
+          incentiveDetails.push(`${e.name}: ₹${fmt(fwIncentive)} Incentive as per Contract`);
+        }
+        const fwSalCalDays = e.salCalDays || 26;
+        const fwRosterDays = Math.max(0, (e.payDays || 0) - fwSalCalDays);
+        const fwRosterAmount = fwRosterDays > 0 ? Math.round(fwStdGross / fwSalCalDays * fwRosterDays) : 0;
+        if (fwRosterDays > 0) {
+          rosterTotal += fwRosterAmount;
+          rosterDaysTotal += fwRosterDays;
+          rosterDetails.push(`${e.name}: ${pad2(fwRosterDays)} Days extra as per roster (${fmt(fwStdGross)}/${fwSalCalDays}×${fwRosterDays}) = ₹${fmt(fwRosterAmount)}`);
+        }
+        const fwExplainedGross = fwStdGross + fwIncentive + fwRosterAmount;
+        const fwResidual = e.gross - fwExplainedGross;
+        if (Math.abs(fwResidual) >= 1) {
+          personalPremiumTotal += fwResidual;
+          const direction = fwResidual > 0 ? 'above' : 'below';
+          personalPremiumDetails.push(
+            `${e.name}: Actual pay ₹${fmt(e.gross)} vs Standard ₹${fmt(fwStdGross)} (Fair Wages) + Incentive ₹${fmt(fwIncentive)} + Roster ₹${fmt(fwRosterAmount)} = ₹${fmt(fwExplainedGross)} — ₹${fmt(Math.abs(fwResidual))} ${direction} what's explained. Verify with payroll.`
+          );
+        }
+        return;
+      }
+
       const monthKey = monthKeyFromValue(e.month);
       const stdGross = standardGrossFor(e, cfg, monthKey).gross; // per-employee override-aware standard, not a flat category rate
       // Prefer the register's own "Total Earning(Th)" (the statutory Gross Pay for this
@@ -2438,23 +3214,43 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       // Per-day divisor for OT/LWP/roster: Site Incharge always uses a fixed 26, since their
       // pay cycle is treated as a flat 26-day month regardless of the calendar; everyone else
       // uses their own Sal Cal Days for that month (28/30/31, not always 26).
-      const isSiteIncharge = /site\s*incharge/i.test(e.designation || '');
+      // Excludes "Jr"/"Junior Site Incharge" — that's a distinct, lower grade paid the
+      // ordinary Skilled rate on the ordinary Sal Cal Days divisor, not the Site-Incharge-
+      // specific fixed-26-day / ₹4,000-default-incentive treatment below.
+      const isSiteIncharge = /site\s*incharge/i.test(e.designation || '') && !/\bjr\.?\b|\bjunior\b/i.test(e.designation || '');
       const divisor = isSiteIncharge ? 26 : (e.salCalDays || 26);
+      // OT is its own special case, confirmed against 17 PBB's Aug-2026 register (a 31-Sal-
+      // Cal-Day month): every OT amount there — Coimbatore ₹1,286.33/day, Madurai
+      // ₹1,239.58/day, Mangalore ₹918/day — divides out to Standard/26 exactly, not
+      // Standard/31, even though LWP on the very same register (John Kennady M, 10 days)
+      // divides out to Standard/31. So OT always uses a fixed 26-day divisor regardless of
+      // the calendar month length or this employee's own Sal Cal Days; only LWP/roster/
+      // joiner-proration use the real Sal Cal Days divisor above.
+      const otDivisor = 26;
 
       // Site Incharge gets a fixed ₹4,000/month incentive by default (tied to the designation,
       // not one Emp ID) — used as a fallback when the register's own PERF INCEN is blank/0 for
-      // whoever currently holds that role.
-      const incentive = e.perfIncen || (isSiteIncharge ? 4000 : 0);
+      // whoever currently holds that role. A stacked-allowance-override employee with a
+      // contracted "Perf Incentive" (e.g. BHS-HR22) falls back to that contracted figure the
+      // same way, for whichever month the register's own PERF INCEN column is blank/0 —
+      // standardGrossFor() deliberately excludes this allowance from stdGross itself (see
+      // there) so it's counted here, once, instead.
+      const allowanceIncentive = (() => {
+        const stack = EMP_ALLOWANCE_OVERRIDES[String(e.empId).trim()];
+        const comp = stack && stack.allowances.find(a => /incent/i.test(a.label));
+        return comp ? (resolveOverrideField(comp, monthKey) || 0) : 0;
+      })();
+      const incentive = e.perfIncen || allowanceIncentive || (isSiteIncharge ? 4000 : 0);
       incentiveTotal += incentive;
       if (incentive) incentiveDetails.push(`${e.name}: ₹${fmt(incentive)} Incentive as per Contract`);
 
       const otDays = e.otDays || 0;
-      const otAmount = otDays ? Math.round(grossPay / divisor * otDays) : 0;
+      const otAmount = otDays ? Math.round(grossPay / otDivisor * otDays) : 0;
       otTotal += otAmount;
       otDaysTotal += otDays;
       // A Site Incharge's OT is always worked as maintenance cover (per this project's rules),
       // so it's labeled distinctly from regular OT rather than lumped in under the same term.
-      if (otAmount) otDetails.push(`${e.name}: ${pad2(otDays)} ${isSiteIncharge ? 'Fix OT (for Maintenance) Payable' : 'OT Payable'} (${fmt(grossPay)}/${divisor}×${otDays}) = ₹${fmt(otAmount)}`);
+      if (otAmount) otDetails.push(`${e.name}: ${pad2(otDays)} ${isSiteIncharge ? 'Fix OT (for Maintenance) Payable' : 'OT Payable'} (${fmt(grossPay)}/${otDivisor}×${otDays}) = ₹${fmt(otAmount)}`);
 
       const maintenanceOT = v ? (v.maintenanceOT || 0) : 0;
       maintenanceOTTotal += maintenanceOT;
@@ -2483,12 +3279,31 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
         rosterDetails.push(`${e.name}: ${pad2(rosterDays)} Days extra as per roster (${fmt(grossPay)}/${divisor}×${rosterDays}) = ₹${fmt(rosterAmount)}`);
       }
 
+      // A shortfall (rosterDays < 0 — paid for FEWER days than even Sal Cal Days minus LWP
+      // would explain) is usually a genuine data mismatch worth a human's attention — except
+      // when it's fully explained by the employee having joined partway through this exact
+      // month, in which case Pay Days < Sal Cal Days is simply mid-month proration, not an
+      // anomaly. Confirmed against BHS Darbhanga's Aug-2026 register: three Helpers with
+      // Date of Joining 17-Aug-2026 show Pay Days 15 of 31, LOP AVAILED 0 (proration isn't
+      // logged as LWP), and their actual Gross matches Standard × 15/31 exactly.
+      let joinerAmount = 0, joinerDaysThisEmp = 0;
+      if (rosterDays < 0) {
+        const dojMonthKey = monthKeyFromValue(e.doj);
+        if (dojMonthKey && monthKey && dojMonthKey === monthKey) {
+          joinerDaysThisEmp = -rosterDays;
+          joinerAmount = -Math.round(grossPay / divisor * joinerDaysThisEmp);
+          joinerTotal += joinerAmount;
+          joinerDaysTotal += joinerDaysThisEmp;
+          joinerDetails.push(`${e.name}: ${pad2(joinerDaysThisEmp)} days before joining this month (DOJ ${fmtDate(e.doj)}) — prorated (${fmt(grossPay)}/${divisor}×${joinerDaysThisEmp}) = -₹${fmt(-joinerAmount)}`);
+        }
+      }
+
       // What this employee's actual register gross "should" be once every explained
-      // component (standard statutory gross, incentive, OT, maintenance OT, roster days) is
-      // added and LWP is taken back out. Whatever's left over — plus or minus — is genuinely
-      // unexplained and gets called out per employee below, so nothing is silently absorbed.
-      // (A shortfall, i.e. rosterDays < 0 above, lands here too since it wasn't added to roster.)
-      const explainedGross = stdGross + incentive + otAmount + maintenanceOT - lwpAmount + (rosterDays > 0 ? rosterAmount : 0);
+      // component (standard statutory gross, incentive, OT, maintenance OT, roster days,
+      // mid-month joining proration) is added and LWP is taken back out. Whatever's left
+      // over — plus or minus — is genuinely unexplained and gets called out per employee
+      // below, so nothing is silently absorbed.
+      const explainedGross = stdGross + incentive + otAmount + maintenanceOT - lwpAmount + (rosterDays > 0 ? rosterAmount : 0) + joinerAmount;
       const residual = e.gross - explainedGross;
       if (Math.abs(residual) >= 1) {
         personalPremiumTotal += residual;
@@ -2497,6 +3312,48 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
           `${e.name}: Actual pay ₹${fmt(e.gross)} vs Standard ₹${fmt(stdGross)} + Incentive ₹${fmt(incentive)} + OT ₹${fmt(otAmount)} + Maintenance OT ₹${fmt(maintenanceOT)} − LWP ₹${fmt(lwpAmount)} + Roster ₹${fmt(rosterDays > 0 ? rosterAmount : 0)} = ₹${fmt(explainedGross)} — ₹${fmt(Math.abs(residual))} ${direction} what's explained. Could be a personal rate/allowance for this employee, or a data mismatch (e.g. LWP/OT days on the register not matching what was actually paid) — verify with payroll.`
         );
       }
+    });
+
+    // Statutory deduction variance — self-explaining check, run automatically on every
+    // baseline: compares the register's OWN actual PF/Ptax/ESI/LWF deduction columns
+    // (per employee, this month) against what this project's rules compute as the
+    // "standard" for that same employee. Whenever the two don't match — a slab/threshold
+    // the tool doesn't model exactly, a one-off exemption, an under- or over-deduction —
+    // this surfaces it by name and amount instead of leaving it to fall through to the
+    // generic "Unexplained pay difference" line (which only looks at Gross, not Net).
+    // A component the register export doesn't carry at all (idx < 0, actual* === null)
+    // is skipped rather than treated as a ₹0 actual, so a missing column never manufactures
+    // a false variance.
+    let statutoryDiffTotal = 0;
+    const statutoryDiffDetails = [];
+    employees.forEach(e => {
+      const row = ratesRowByEmp[String(e.empId).trim()];
+      if (!row) return;
+      const checks = [
+        { label: 'PF', actual: e.actualPF, std: row.pf },
+        { label: 'Ptax', actual: e.actualPtax, std: row.ptax },
+        { label: 'ESI', actual: e.actualEsi, std: row.esi },
+        { label: 'LWF', actual: e.actualLwf, std: row.lwf },
+      ];
+      const parts = [];
+      let empDiff = 0;
+      checks.forEach(c => {
+        if (c.actual === null || c.actual === undefined) return; // register doesn't carry this column
+        const d = c.actual - c.std;
+        if (Math.abs(d) >= 1) {
+          empDiff += d;
+          parts.push(`${c.label} ₹${fmt(c.actual)} deducted in register vs ₹${fmt(c.std)} standard (${d > 0 ? '+' : ''}${fmt(d)})`);
+        }
+      });
+      if (parts.length) {
+        statutoryDiffTotal += empDiff;
+        statutoryDiffDetails.push(`${e.name}: ${parts.join('; ')} — confirm applicability with payroll.`);
+      }
+    });
+    if (Math.abs(statutoryDiffTotal) >= 1) reconItems.push({
+      label: `Statutory deduction variance vs Salary Register (PF/Ptax/ESI/LWF) — needs review (${statutoryDiffDetails.length} employee${statutoryDiffDetails.length === 1 ? '' : 's'})`,
+      gross: 0, net: -statutoryDiffTotal,
+      details: statutoryDiffDetails,
     });
 
     if (incentiveTotal !== 0) reconItems.push({
@@ -2523,6 +3380,11 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       label: `${pad2(rosterDaysTotal)} Extra man days due to roster (as per Salary Register)`,
       gross: rosterTotal, net: rosterTotal,
       details: rosterDetails,
+    });
+    if (joinerTotal !== 0) reconItems.push({
+      label: `${pad2(joinerDaysTotal)} Days before joining this month — new joiner proration (as per Salary Register)`,
+      gross: joinerTotal, net: joinerTotal,
+      details: joinerDetails,
     });
     if (Math.abs(personalPremiumTotal) >= 1) reconItems.push({
       label: `Unexplained pay difference — needs review (${personalPremiumDetails.length} employee${personalPremiumDetails.length === 1 ? '' : 's'})`,
@@ -2610,15 +3472,15 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     enableRowSelect('tblRate');
 
     // Rates table (per employee)
-    let rHtml = `<thead><tr><th>Emp Code</th><th>Employee</th><th>Category</th><th>DOJ</th><th class="num">Gross</th><th class="num">PF</th><th class="num">Ptax</th><th class="num">LWF</th><th class="num">Net</th></tr></thead><tbody>`;
+    let rHtml = `<thead><tr><th>Emp Code</th><th>Employee</th><th>Category</th><th>DOJ</th><th class="num">Gross</th><th class="num">PF</th><th class="num">Ptax</th><th class="num">LWF</th><th class="num">ESI</th><th class="num">Net</th></tr></thead><tbody>`;
     r.ratesRows.forEach(row => {
       const nameCell = row.overrideNote
         ? `<td title="${row.overrideNote.replace(/"/g, '&quot;')}">${row.name} <span style="color:var(--gold);cursor:help;">✦</span></td>`
         : `<td>${row.name}</td>`;
-      rHtml += `<tr class="row-selectable"><td class="mono">${row.empId}</td>${nameCell}<td>${row.category}</td><td>${row.doj || ''}</td>
-        <td class="num">₹${fmt(row.stdGross)}</td><td class="num">₹${fmt(row.pf)}</td><td class="num">₹${fmt(row.ptax)}</td><td class="num">₹${fmt(row.lwf)}</td><td class="num">₹${fmt(row.stdNet)}</td></tr>`;
+      rHtml += `<tr class="row-selectable"><td class="mono">${row.empId}</td>${nameCell}<td>${row.category}</td><td>${fmtDate(row.doj)}</td>
+        <td class="num">₹${fmt(row.stdGross)}</td><td class="num">₹${fmt(row.pf)}</td><td class="num">₹${fmt(row.ptax)}</td><td class="num">₹${fmt(row.lwf)}</td><td class="num">₹${fmt(row.esi)}</td><td class="num">₹${fmt(row.stdNet)}</td></tr>`;
     });
-    rHtml += `<tr class="total"><td colspan="4">Total</td><td class="num">₹${fmt(r.ratesTotal.gross)}</td><td class="num">₹${fmt(r.ratesTotal.pf)}</td><td class="num">₹${fmt(r.ratesTotal.ptax)}</td><td class="num">₹${fmt(r.ratesTotal.lwf)}</td><td class="num">₹${fmt(r.ratesTotal.net)}</td></tr></tbody>`;
+    rHtml += `<tr class="total"><td colspan="4">Total</td><td class="num">₹${fmt(r.ratesTotal.gross)}</td><td class="num">₹${fmt(r.ratesTotal.pf)}</td><td class="num">₹${fmt(r.ratesTotal.ptax)}</td><td class="num">₹${fmt(r.ratesTotal.lwf)}</td><td class="num">₹${fmt(r.ratesTotal.esi)}</td><td class="num">₹${fmt(r.ratesTotal.net)}</td></tr></tbody>`;
     $('tblRates').innerHTML = rHtml;
     enableRowSelect('tblRates');
 
@@ -2661,6 +3523,38 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     }
 
     renderManualReconList();
+
+    // Location-wise Baseline & Variance (multi-branch PBB projects only)
+    const lv = computeLocationVariance(r);
+    if (lv) {
+      $('locationBaselineSection').style.display = '';
+      $('locBaselineAsOf').textContent = lv.asOf;
+      const buildTbl = (key, wagesKey, actualKey, diffKey) => {
+        let h = `<thead><tr><th>Site</th><th>Area</th>`;
+        CONTRACT_CATEGORIES.forEach(c => { h += `<th class="num">${c} Rate</th><th class="num">${c} MP</th>`; });
+        h += `<th class="num">Wages Approved</th><th class="num">As per Salary</th><th class="num">Diff</th><th>Remarks</th></tr></thead><tbody>`;
+        lv.rows.forEach(row => {
+          h += `<tr class="row-selectable"><td>${row.site}</td><td>${row.area || ''}</td>`;
+          CONTRACT_CATEGORIES.forEach(c => {
+            const cell = row[key][c];
+            h += `<td class="num">${cell ? '₹' + fmt(cell.rate) : '—'}</td><td class="num">${cell ? cell.manpower : '—'}</td>`;
+          });
+          const actual = row[actualKey];
+          const diff = row[diffKey];
+          h += `<td class="num">₹${fmt(row[wagesKey])}</td><td class="num">${actual === null ? '—' : '₹' + fmt(actual)}</td><td class="num">${diff === null ? '—' : fmtSigned(diff)}</td><td style="font-size:12px; color:var(--muted);">${row.remark || ''}</td></tr>`;
+        });
+        const totActual = lv[`totalActual${key === 'gross' ? 'Gross' : 'Net'}`];
+        const totDiff = lv[`totalDiff${key === 'gross' ? 'Gross' : 'Net'}`];
+        h += `<tr class="total"><td colspan="${2 + CONTRACT_CATEGORIES.length * 2}">Total</td><td class="num">₹${fmt(lv[`totalWagesApproved${key === 'gross' ? 'Gross' : 'Net'}`])}</td><td class="num">${totActual === null ? '—' : '₹' + fmt(totActual)}</td><td class="num">${totDiff === null ? '—' : fmtSigned(totDiff)}</td><td></td></tr></tbody>`;
+        return h;
+      };
+      $('tblLocGross').innerHTML = buildTbl('gross', 'wagesApprovedGross', 'actualGross', 'diffGross');
+      $('tblLocNet').innerHTML = buildTbl('net', 'wagesApprovedNet', 'actualNet', 'diffNet');
+      enableRowSelect('tblLocGross');
+      enableRowSelect('tblLocNet');
+    } else {
+      $('locationBaselineSection').style.display = 'none';
+    }
 
     $('results').classList.add('show');
     $('downloadBar').style.display = 'flex';
@@ -2751,20 +3645,20 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
     });
     aoa.push([]);
     aoa.push(['Rates Table']);
-    aoa.push(['Emp Code', 'Employee Name', 'Category', 'Date of Joining', 'Gross Pay', 'PF', 'Ptax', 'LWF', 'Net Pay']);
+    aoa.push(['Emp Code', 'Employee Name', 'Category', 'Date of Joining', 'Gross Pay', 'PF', 'Ptax', 'LWF', 'ESI', 'Net Pay']);
     r.ratesRows.forEach(row => {
-      aoa.push([row.empId, row.name, row.category, row.doj, row.stdGross, row.pf, row.ptax, row.lwf, row.stdNet]);
+      aoa.push([row.empId, row.name, row.category, fmtDate(row.doj), row.stdGross, row.pf, row.ptax, row.lwf, row.esi, row.stdNet]);
     });
-    aoa.push(['Total', '', '', '', r.ratesTotal.gross, r.ratesTotal.pf, r.ratesTotal.ptax, r.ratesTotal.lwf, r.ratesTotal.net]);
+    aoa.push(['Total', '', '', '', r.ratesTotal.gross, r.ratesTotal.pf, r.ratesTotal.ptax, r.ratesTotal.lwf, r.ratesTotal.esi, r.ratesTotal.net]);
     aoa.push([]);
-    aoa.push(['Salary as Per Salary Register', '', '', '', r.registerGross, '', '', '', r.registerNet]);
-    aoa.push(['Difference', '', 'Gross', 'Net', r.diffGross, '', '', '', r.diffNet]);
+    aoa.push(['Salary as Per Salary Register', '', '', '', r.registerGross, '', '', '', '', r.registerNet]);
+    aoa.push(['Difference', '', 'Gross', 'Net', r.diffGross, '', '', '', '', r.diffNet]);
     r.reconItems.forEach(item => {
-      aoa.push([item.label, '', '', '', item.gross || '', '', '', '', item.net]);
+      aoa.push([item.label, '', '', '', item.gross || '', '', '', '', '', item.net]);
       (item.details || []).forEach(d => aoa.push(['   ' + d]));
     });
-    aoa.push(['Residual', '', '', '', r.finalGross, '', '', '', r.finalNet]);
-    aoa.push(['', '', '', '', '', '', '', '', (Math.abs(r.finalGross) < 1 && Math.abs(r.finalNet) < 1) ? 'OK' : 'REVIEW']);
+    aoa.push(['Residual', '', '', '', r.finalGross, '', '', '', '', r.finalNet]);
+    aoa.push(['', '', '', '', '', '', '', '', '', (Math.abs(r.finalGross) < 1 && Math.abs(r.finalNet) < 1) ? 'OK' : 'REVIEW']);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const csv = XLSX.utils.sheet_to_csv(ws);
@@ -2786,5 +3680,66 @@ break;case"<bookViews":;case"<bookViews>":;case"</bookViews>":break;case"<workbo
       }
     }
   });
+
+  const btnExportLocation = $('btnExportLocation');
+  if (btnExportLocation) {
+    btnExportLocation.addEventListener('click', async () => {
+      const r = window.__lastResult;
+      if (!r || !downloadsNS) return;
+      const lv = computeLocationVariance(r);
+      if (!lv) return;
+      const aoa = [];
+      aoa.push(['Three D Integrated Solutions Ltd.']);
+      aoa.push([]);
+      aoa.push([`Baseline & Variance — ${r.cfg.project} (Location-wise) as on ${lv.asOf}`]);
+      aoa.push([]);
+      const catHeaders = [];
+      CONTRACT_CATEGORIES.forEach(c => { catHeaders.push(`${c} Rate`, `${c} MP`); });
+      const buildBlock = (title, key, wagesKey, actualKey, diffKey) => {
+        aoa.push([title]);
+        aoa.push(['Site', 'Area', ...catHeaders, 'Wages Approved', 'As per Salary', 'Diff', 'Remarks']);
+        lv.rows.forEach(row => {
+          const line = [row.site, row.area || ''];
+          CONTRACT_CATEGORIES.forEach(c => {
+            const cell = row[key][c];
+            line.push(cell ? cell.rate : '', cell ? cell.manpower : '');
+          });
+          line.push(row[wagesKey], row[actualKey] === null ? '' : row[actualKey], row[diffKey] === null ? '' : row[diffKey], row.remark || '');
+          aoa.push(line);
+        });
+        const totActual = lv[`totalActual${key === 'gross' ? 'Gross' : 'Net'}`];
+        const totDiff = lv[`totalDiff${key === 'gross' ? 'Gross' : 'Net'}`];
+        const totalLine = ['Total', ''];
+        CONTRACT_CATEGORIES.forEach(() => totalLine.push('', ''));
+        totalLine.push(lv[`totalWagesApproved${key === 'gross' ? 'Gross' : 'Net'}`], totActual === null ? '' : totActual, totDiff === null ? '' : totDiff, '');
+        aoa.push(totalLine);
+        aoa.push([]);
+      };
+      buildBlock('Gross Rates', 'gross', 'wagesApprovedGross', 'actualGross', 'diffGross');
+      buildBlock('Net Rates', 'net', 'wagesApprovedNet', 'actualNet', 'diffNet');
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      const fname = `${r.cfg.project.replace(/\s+/g, '_')}_Location_Baseline_Variance_${(r.monthLabel || 'output').replace(/\s+/g, '_')}.csv`;
+
+      const original = btnExportLocation.textContent;
+      try {
+        await downloadsNS.save({ filename: fname, data: csv });
+        btnExportLocation.textContent = 'Saved ✓';
+        setTimeout(() => { btnExportLocation.textContent = original; }, 2200);
+      } catch (err) {
+        const code = err && err.code;
+        if (code === 'declined') {
+          // viewer said no — do nothing, no retry
+        } else if (code === 'rate_limited') {
+          toast('A save prompt is already open — try again in a moment.');
+        } else {
+          toast('Could not save the file: ' + (err && err.message ? err.message : 'unknown error'));
+        }
+      }
+    });
+  }
 })();
 </script>
+
+</body></html>
